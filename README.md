@@ -2,26 +2,6 @@
 
 <p align="center">
 
-![Status](https://img.shields.io/badge/status-in%20development-f59e0b?style=for-the-badge)
-![Private](https://img.shields.io/badge/project-private-7c3aed?style=for-the-badge)
-![License](https://img.shields.io/badge/license-proprietary-111827?style=for-the-badge)
-
-</p>
-
-<p align="center">
-
-![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?style=flat-square&logo=typescript&logoColor=white)
-![Capacitor](https://img.shields.io/badge/Capacitor-iOS%20%7C%20Android-119EFF?style=flat-square&logo=capacitor&logoColor=white)
-![Node.js](https://img.shields.io/badge/Node.js-backend-339933?style=flat-square&logo=nodedotjs&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-database-4169E1?style=flat-square&logo=postgresql&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white)
-![PWA](https://img.shields.io/badge/PWA-supported-5A0FC8?style=flat-square&logo=pwa&logoColor=white)
-
-</p>
-
-<p align="center">
-
 ![Android](https://img.shields.io/badge/Android-native%20shell-3DDC84?style=flat-square&logo=android&logoColor=white)
 ![iOS](https://img.shields.io/badge/iOS-native%20shell-000000?style=flat-square&logo=apple&logoColor=white)
 ![WidgetKit](https://img.shields.io/badge/iOS-WidgetKit-000000?style=flat-square&logo=apple&logoColor=white)
