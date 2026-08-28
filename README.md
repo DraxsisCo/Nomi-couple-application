@@ -1,16 +1,4 @@
-# Nomi
-
-<p align="center">
-  <img src="./docs/assets/nomi-logo.png" alt="Nomi Logo" width="160" />
-</p>
-
-<h3 align="center">Closer, every day.</h3>
-
-<p align="center">
-  A private couples companion app for iOS, Android, and the web.
-  <br />
-  Share moods, moments, memories, countdowns, messages, and widgets in one private space.
-</p>
+<img width="2172" height="724" alt="ChatGPT Image Aug 28, 2026, 01_22_41 PM" src="https://github.com/user-attachments/assets/266f4c06-61fa-4861-b4d8-515f127b9c74" />
 
 <p align="center">
 
