@@ -1,0 +1,350 @@
+version: 1
+skills:
+  - id: adr
+    category: architecture
+    file: .agents/skills/architecture/adr/SKILL.md
+  - id: api-design
+    category: architecture
+    file: .agents/skills/architecture/api-design/SKILL.md
+  - id: architecture-review
+    category: architecture
+    file: .agents/skills/architecture/architecture-review/SKILL.md
+  - id: dependency-evaluation
+    category: architecture
+    file: .agents/skills/architecture/dependency-evaluation/SKILL.md
+  - id: failure-mode-analysis
+    category: architecture
+    file: .agents/skills/architecture/failure-mode-analysis/SKILL.md
+  - id: frontend-architecture
+    category: architecture
+    file: .agents/skills/architecture/frontend-architecture/SKILL.md
+  - id: integration-design
+    category: architecture
+    file: .agents/skills/architecture/integration-design/SKILL.md
+  - id: schema-design
+    category: architecture
+    file: .agents/skills/architecture/schema-design/SKILL.md
+  - id: service-design
+    category: architecture
+    file: .agents/skills/architecture/service-design/SKILL.md
+  - id: business-model-analysis
+    category: business
+    file: .agents/skills/business/business-model-analysis/SKILL.md
+  - id: competitive-analysis
+    category: business
+    file: .agents/skills/business/competitive-analysis/SKILL.md
+  - id: decision-log
+    category: business
+    file: .agents/skills/business/decision-log/SKILL.md
+  - id: market-research
+    category: business
+    file: .agents/skills/business/market-research/SKILL.md
+  - id: market-sizing
+    category: business
+    file: .agents/skills/business/market-sizing/SKILL.md
+  - id: packaging-design
+    category: business
+    file: .agents/skills/business/packaging-design/SKILL.md
+  - id: positioning-analysis
+    category: business
+    file: .agents/skills/business/positioning-analysis/SKILL.md
+  - id: pre-mortem
+    category: business
+    file: .agents/skills/business/pre-mortem/SKILL.md
+  - id: pricing-analysis
+    category: business
+    file: .agents/skills/business/pricing-analysis/SKILL.md
+  - id: process-analysis
+    category: business
+    file: .agents/skills/business/process-analysis/SKILL.md
+  - id: risk-triage
+    category: business
+    file: .agents/skills/business/risk-triage/SKILL.md
+  - id: scenario-modeling
+    category: business
+    file: .agents/skills/business/scenario-modeling/SKILL.md
+  - id: strategy-analysis
+    category: business
+    file: .agents/skills/business/strategy-analysis/SKILL.md
+  - id: unit-economics
+    category: business
+    file: .agents/skills/business/unit-economics/SKILL.md
+  - id: backup-restore-review
+    category: database
+    file: .agents/skills/database/backup-restore-review/SKILL.md
+  - id: create-migration
+    category: database
+    file: .agents/skills/database/create-migration/SKILL.md
+  - id: index-review
+    category: database
+    file: .agents/skills/database/index-review/SKILL.md
+  - id: migration-planning
+    category: database
+    file: .agents/skills/database/migration-planning/SKILL.md
+  - id: query-review
+    category: database
+    file: .agents/skills/database/query-review/SKILL.md
+  - id: rollback-planning
+    category: database
+    file: .agents/skills/database/rollback-planning/SKILL.md
+  - id: accessibility-review
+    category: design
+    file: .agents/skills/design/accessibility-review/SKILL.md
+  - id: design-critique
+    category: design
+    file: .agents/skills/design/design-critique/SKILL.md
+  - id: design-system-review
+    category: design
+    file: .agents/skills/design/design-system-review/SKILL.md
+  - id: interaction-review
+    category: design
+    file: .agents/skills/design/interaction-review/SKILL.md
+  - id: keyboard-review
+    category: design
+    file: .agents/skills/design/keyboard-review/SKILL.md
+  - id: responsive-review
+    category: design
+    file: .agents/skills/design/responsive-review/SKILL.md
+  - id: semantic-review
+    category: design
+    file: .agents/skills/design/semantic-review/SKILL.md
+  - id: ui-spec
+    category: design
+    file: .agents/skills/design/ui-spec/SKILL.md
+  - id: user-flow
+    category: design
+    file: .agents/skills/design/user-flow/SKILL.md
+  - id: doc-structure
+    category: documentation
+    file: .agents/skills/documentation/doc-structure/SKILL.md
+  - id: documentation-audit
+    category: documentation
+    file: .agents/skills/documentation/documentation-audit/SKILL.md
+  - id: runbook-writing
+    category: documentation
+    file: .agents/skills/documentation/runbook-writing/SKILL.md
+  - id: technical-writing
+    category: documentation
+    file: .agents/skills/documentation/technical-writing/SKILL.md
+  - id: api-implementation
+    category: engineering
+    file: .agents/skills/engineering/api-implementation/SKILL.md
+  - id: component-implementation
+    category: engineering
+    file: .agents/skills/engineering/component-implementation/SKILL.md
+  - id: refactor-plan
+    category: engineering
+    file: .agents/skills/engineering/refactor-plan/SKILL.md
+  - id: service-implementation
+    category: engineering
+    file: .agents/skills/engineering/service-implementation/SKILL.md
+  - id: state-design
+    category: engineering
+    file: .agents/skills/engineering/state-design/SKILL.md
+  - id: task-decomposition
+    category: engineering
+    file: .agents/skills/engineering/task-decomposition/SKILL.md
+  - id: audience-analysis
+    category: growth
+    file: .agents/skills/growth/audience-analysis/SKILL.md
+  - id: campaign-plan
+    category: growth
+    file: .agents/skills/growth/campaign-plan/SKILL.md
+  - id: content-brief
+    category: growth
+    file: .agents/skills/growth/content-brief/SKILL.md
+  - id: editorial-plan
+    category: growth
+    file: .agents/skills/growth/editorial-plan/SKILL.md
+  - id: event-taxonomy
+    category: growth
+    file: .agents/skills/growth/event-taxonomy/SKILL.md
+  - id: experiment-analysis
+    category: growth
+    file: .agents/skills/growth/experiment-analysis/SKILL.md
+  - id: funnel-analysis
+    category: growth
+    file: .agents/skills/growth/funnel-analysis/SKILL.md
+  - id: growth-experiment
+    category: growth
+    file: .agents/skills/growth/growth-experiment/SKILL.md
+  - id: keyword-analysis
+    category: growth
+    file: .agents/skills/growth/keyword-analysis/SKILL.md
+  - id: seo-audit
+    category: growth
+    file: .agents/skills/growth/seo-audit/SKILL.md
+  - id: container-review
+    category: infrastructure
+    file: .agents/skills/infrastructure/container-review/SKILL.md
+  - id: deployment-review
+    category: infrastructure
+    file: .agents/skills/infrastructure/deployment-review/SKILL.md
+  - id: environment-config
+    category: infrastructure
+    file: .agents/skills/infrastructure/environment-config/SKILL.md
+  - id: github-actions
+    category: infrastructure
+    file: .agents/skills/infrastructure/github-actions/SKILL.md
+  - id: incident-response
+    category: infrastructure
+    file: .agents/skills/infrastructure/incident-response/SKILL.md
+  - id: logging-review
+    category: infrastructure
+    file: .agents/skills/infrastructure/logging-review/SKILL.md
+  - id: metrics-design
+    category: infrastructure
+    file: .agents/skills/infrastructure/metrics-design/SKILL.md
+  - id: release-readiness
+    category: infrastructure
+    file: .agents/skills/infrastructure/release-readiness/SKILL.md
+  - id: slo-review
+    category: infrastructure
+    file: .agents/skills/infrastructure/slo-review/SKILL.md
+  - id: trace-design
+    category: infrastructure
+    file: .agents/skills/infrastructure/trace-design/SKILL.md
+  - id: integration-implementation
+    category: integration
+    file: .agents/skills/integration/integration-implementation/SKILL.md
+  - id: oauth-review
+    category: integration
+    file: .agents/skills/integration/oauth-review/SKILL.md
+  - id: webhook-review
+    category: integration
+    file: .agents/skills/integration/webhook-review/SKILL.md
+  - id: cross-functional-coordination
+    category: orchestration
+    file: .agents/skills/orchestration/cross-functional-coordination/SKILL.md
+  - id: frontend-performance
+    category: performance
+    file: .agents/skills/performance/frontend-performance/SKILL.md
+  - id: load-test-plan
+    category: performance
+    file: .agents/skills/performance/load-test-plan/SKILL.md
+  - id: performance-profile
+    category: performance
+    file: .agents/skills/performance/performance-profile/SKILL.md
+  - id: acceptance-criteria
+    category: product
+    file: .agents/skills/product/acceptance-criteria/SKILL.md
+  - id: edge-case-analysis
+    category: product
+    file: .agents/skills/product/edge-case-analysis/SKILL.md
+  - id: evidence-synthesis
+    category: product
+    file: .agents/skills/product/evidence-synthesis/SKILL.md
+  - id: feature-prioritization
+    category: product
+    file: .agents/skills/product/feature-prioritization/SKILL.md
+  - id: interview-guide
+    category: product
+    file: .agents/skills/product/interview-guide/SKILL.md
+  - id: product-metrics
+    category: product
+    file: .agents/skills/product/product-metrics/SKILL.md
+  - id: requirements
+    category: product
+    file: .agents/skills/product/requirements/SKILL.md
+  - id: research-plan
+    category: product
+    file: .agents/skills/product/research-plan/SKILL.md
+  - id: user-story
+    category: product
+    file: .agents/skills/product/user-story/SKILL.md
+  - id: event-contract-review
+    category: realtime
+    file: .agents/skills/realtime/event-contract-review/SKILL.md
+  - id: idempotency-review
+    category: realtime
+    file: .agents/skills/realtime/idempotency-review/SKILL.md
+  - id: realtime-design
+    category: realtime
+    file: .agents/skills/realtime/realtime-design/SKILL.md
+  - id: realtime-testing
+    category: realtime
+    file: .agents/skills/realtime/realtime-testing/SKILL.md
+  - id: characterization-testing
+    category: review
+    file: .agents/skills/review/characterization-testing/SKILL.md
+  - id: diff-review
+    category: review
+    file: .agents/skills/review/diff-review/SKILL.md
+  - id: implementation-review
+    category: review
+    file: .agents/skills/review/implementation-review/SKILL.md
+  - id: account-research
+    category: sales
+    file: .agents/skills/sales/account-research/SKILL.md
+  - id: feedback-synthesis
+    category: sales
+    file: .agents/skills/sales/feedback-synthesis/SKILL.md
+  - id: icp-definition
+    category: sales
+    file: .agents/skills/sales/icp-definition/SKILL.md
+  - id: objection-analysis
+    category: sales
+    file: .agents/skills/sales/objection-analysis/SKILL.md
+  - id: onboarding-review
+    category: sales
+    file: .agents/skills/sales/onboarding-review/SKILL.md
+  - id: qualification
+    category: sales
+    file: .agents/skills/sales/qualification/SKILL.md
+  - id: retention-analysis
+    category: sales
+    file: .agents/skills/sales/retention-analysis/SKILL.md
+  - id: sales-process
+    category: sales
+    file: .agents/skills/sales/sales-process/SKILL.md
+  - id: abuse-case-analysis
+    category: security
+    file: .agents/skills/security/abuse-case-analysis/SKILL.md
+  - id: appsec-review
+    category: security
+    file: .agents/skills/security/appsec-review/SKILL.md
+  - id: authorization-review
+    category: security
+    file: .agents/skills/security/authorization-review/SKILL.md
+  - id: data-flow-review
+    category: security
+    file: .agents/skills/security/data-flow-review/SKILL.md
+  - id: dependency-risk-review
+    category: security
+    file: .agents/skills/security/dependency-risk-review/SKILL.md
+  - id: input-validation
+    category: security
+    file: .agents/skills/security/input-validation/SKILL.md
+  - id: secret-review
+    category: security
+    file: .agents/skills/security/secret-review/SKILL.md
+  - id: security-smell-review
+    category: security
+    file: .agents/skills/security/security-smell-review/SKILL.md
+  - id: threat-model
+    category: security
+    file: .agents/skills/security/threat-model/SKILL.md
+  - id: acceptance-testing
+    category: testing
+    file: .agents/skills/testing/acceptance-testing/SKILL.md
+  - id: backend-testing
+    category: testing
+    file: .agents/skills/testing/backend-testing/SKILL.md
+  - id: e2e-testing
+    category: testing
+    file: .agents/skills/testing/e2e-testing/SKILL.md
+  - id: frontend-testing
+    category: testing
+    file: .agents/skills/testing/frontend-testing/SKILL.md
+  - id: integration-testing
+    category: testing
+    file: .agents/skills/testing/integration-testing/SKILL.md
+  - id: regression-testing
+    category: testing
+    file: .agents/skills/testing/regression-testing/SKILL.md
+  - id: test-strategy
+    category: testing
+    file: .agents/skills/testing/test-strategy/SKILL.md
+  - id: unit-testing
+    category: testing
+    file: .agents/skills/testing/unit-testing/SKILL.md

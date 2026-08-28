@@ -1,0 +1,12 @@
+version: 1
+workflows:
+  feature: .agents/workflows/feature-development.md
+  bug: .agents/workflows/bug-fix.md
+  security: .agents/workflows/security-fix.md
+  incident: .agents/workflows/production-incident.md
+  architecture: .agents/workflows/architecture-change.md
+  database: .agents/workflows/database-migration.md
+  dependency: .agents/workflows/dependency-upgrade.md
+  release: .agents/workflows/release.md
+  discovery: .agents/workflows/product-discovery.md
+  experiment: .agents/workflows/startup-experiment.md
