@@ -1,5 +1,10 @@
 export type Tab = "home" | "calendar" | "cycle" | "diary" | "settings";
 
+export type MoodState = {
+  emoji: string;
+  label: string;
+};
+
 export type CycleState = {
   lastPeriodStart: string;
   cycleLength: number;
@@ -16,6 +21,7 @@ export type IntimacyState = {
   message: string;
   sentAt: string | null;
   expiresAt: string | null;
+  senderId?: string;
 };
 
 export type EventItem = {
@@ -35,7 +41,10 @@ export type MemoryItem = {
   body: string;
   date: string;
   emoji: string;
+  authorId: string;
+  authorName: string;
   reply?: string;
+  replyAuthorName?: string;
 };
 
 export const MOODS = [
@@ -50,14 +59,3 @@ export const MOODS = [
 ] as const;
 
 export const ACTIVITIES = ["مشغول کار", "در حال استراحت", "در مسیر", "آماده‌ی تماس", "مشغول درس", "وقت آزاد"];
-
-export const INITIAL_EVENTS: EventItem[] = [
-  { id: "e1", title: "قرار کافه‌ی همیشگی", day: 28, month: "شهریور", time: "ساعت ۱۸:۳۰", daysLeft: 2, reminder: "یک روز قبل" },
-  { id: "e2", title: "سالگرد آشنایی‌مون", day: 8, month: "مهر", time: "تمام روز", daysLeft: 13, reminder: "یک هفته قبل" },
-  { id: "e3", title: "سفر شمال", day: 18, month: "مهر", time: "ساعت ۶:۰۰", daysLeft: 23, reminder: "یک هفته قبل" },
-];
-
-export const INITIAL_MEMORIES: MemoryItem[] = [
-  { id: "m1", title: "یک عصر بارونی", body: "همون کافه‌ی کوچیک و بوی قهوه؛ یکی از ساده‌ترین و قشنگ‌ترین عصرهامون بود.", date: "۲۳ شهریور ۱۴۰۵", emoji: "☕", reply: "من هنوز آهنگی که پخش می‌شد رو یادمه 🤍" },
-  { id: "m2", title: "اولین سفر دونفره", body: "صبح زود راه افتادیم و تمام مسیر رو با آهنگ‌های قدیمی خوندیم. باید دوباره تکرارش کنیم!", date: "۱۲ مرداد ۱۴۰۵", emoji: "🌿", reply: "این بار من پلی‌لیست رو می‌سازم 😄" },
-];

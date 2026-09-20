@@ -2,8 +2,8 @@
 
 import {
   Bell, BellRing, BookHeart, CalendarDays, ChevronLeft, ChevronRight, Clock3, Droplets,
-  Flame, Heart, Home, ImagePlus, LockKeyhole, LogOut, Moon,
-  MoreHorizontal, Plus, Settings, ShieldCheck, Sparkles, UserRound, UsersRound, Waves,
+  Flame, Heart, Home, LockKeyhole, LogOut, Moon,
+  Plus, Settings, ShieldCheck, Sparkles, UsersRound, Waves,
   WifiOff, X,
 } from "lucide-react";
 import { Alert, BottomNavigation, BottomNavigationAction, Fab, Snackbar, SwipeableDrawer, Switch } from "@mui/material";
@@ -99,14 +99,14 @@ const navItems: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "settings", label: "تنظیمات", icon: Settings },
 ];
 
-export function CouplesApp({ production }: { production?: ProductionScope }) {
-  const { state, update, ready } = useNamiState(production);
+export function CouplesApp({ production }: { production: ProductionScope }) {
+  const { state, update, ready, error, reload } = useNamiState(production);
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("home");
-  const [modal, setModal] = useState<"status" | "event" | "cycle" | "intimacy" | "memory" | "invite" | null>(null);
-  const [toast, setToast] = useState("");
+  const [modal, setModal] = useState<"status" | "event" | "cycle" | "intimacy" | "memory" | "relationship" | "invite" | null>(null);
+  const [toast, setToast] = useState<{ message: string; severity: "success" | "error" } | null>(null);
   const [online, setOnline] = useState(true);
-  const cycle = state.cycle ?? createDefaultCycle();
+  const cycleDraft = state.cycle ?? createDefaultCycle();
   const intimacy = state.intimacy ?? createDefaultIntimacy();
 
   useEffect(() => {
@@ -118,43 +118,57 @@ export function CouplesApp({ production }: { production?: ProductionScope }) {
 
   useEffect(() => {
     if (!toast) return;
-    const timer = window.setTimeout(() => setToast(""), 2800);
+    const timer = window.setTimeout(() => setToast(null), 3200);
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  if (!ready) return null;
-  if (!state.onboarded) return <Welcome onStart={() => update({ onboarded: true })} />;
+  const persist = async (action: () => Promise<void>, success: string, close = true) => {
+    try {
+      await action();
+      if (close) setModal(null);
+      setToast({ message: success, severity: "success" });
+    } catch (saveError) {
+      setToast({ message: saveError instanceof Error ? saveError.message : "ذخیره انجام نشد؛ دوباره امتحان کن.", severity: "error" });
+    }
+  };
+
+  if (!ready) return <main className="welcome"><section className="welcome-card"><div className="welcome-logo"><Heart size={42} fill="currentColor" /></div><p className="muted">داریم فضای دوتایی‌تون رو میاریم…</p></section></main>;
 
   const openAdd = () => setModal(tab === "calendar" ? "event" : tab === "cycle" ? "cycle" : tab === "diary" ? "memory" : "status");
   const addLabel = tab === "calendar" ? "افزودن قرار" : tab === "cycle" ? "ثبت وضعیت چرخه" : tab === "diary" ? "ثبت خاطره" : "به‌روزرسانی حال";
 
   return (
     <main className="app-shell">
-      <Snackbar open={Boolean(toast)} autoHideDuration={2800} onClose={() => setToast("")} anchorOrigin={{ vertical: "top", horizontal: "center" }}>
-        <Alert icon={false} variant="filled" severity="success" onClose={() => setToast("")}>{toast}</Alert>
+      <Snackbar open={Boolean(toast)} autoHideDuration={3200} onClose={() => setToast(null)} anchorOrigin={{ vertical: "top", horizontal: "center" }}>
+        <Alert icon={false} variant="filled" severity={toast?.severity ?? "success"} onClose={() => setToast(null)}>{toast?.message}</Alert>
       </Snackbar>
-      {!online && <div className="toast"><WifiOff size={15} /> حالت آفلاین؛ تغییرات روی دستگاه ذخیره می‌شوند</div>}
+      {!online && <div className="toast"><WifiOff size={15} /> اینترنت قطع شده؛ تا وصل شدن دوباره چیزی ذخیره نمی‌شه</div>}
       <div className="page">
-        <Header viewerName={production?.viewerName || "سارا"} partnerName={production?.partnerName || "آرین"} onInvite={() => setModal("invite")} />
+        <Header viewerName={production.viewerName} partnerName={production.partnerName} onInvite={() => setModal("invite")} />
+        {error && <Alert severity="error" action={<button className="text-button" onClick={() => void reload()}>تلاش دوباره</button>} sx={{ mb: 2 }}>{error}</Alert>}
         <div className="view-enter" key={tab}>
-        {tab === "home" && <HomeView state={state} intimacy={intimacy} viewerName={production?.viewerName || "سارا"} partnerName={production?.partnerName || "آرین"} openStatus={() => setModal("status")} openIntimacy={() => setModal("intimacy")} goTo={setTab} />}
+        {tab === "home" && <HomeView state={state} intimacy={intimacy} partnerIntimacy={state.partnerIntimacy} viewerName={production.viewerName} partnerName={production.partnerName} openStatus={() => setModal("status")} openIntimacy={() => setModal("intimacy")} goTo={setTab} />}
         {tab === "calendar" && <CalendarView events={state.events} />}
-        {tab === "cycle" && <CycleView cycle={cycle} onLog={() => setModal("cycle")} onShare={() => update({ cycle: { ...cycle, sharedWithPartner: !cycle.sharedWithPartner } })} />}
+        {tab === "cycle" && <CycleView cycle={state.cycle} partnerName={production.partnerName} onLog={() => setModal("cycle")} onShare={() => state.cycle && void persist(() => update({ cycle: { ...state.cycle!, sharedWithPartner: !state.cycle!.sharedWithPartner } }), state.cycle.sharedWithPartner ? "چرخه خصوصی شد" : `چرخه با ${production.partnerName} به اشتراک گذاشته شد`, false)} />}
         {tab === "diary" && <DiaryView memories={state.memories} />}
         {tab === "settings" && (
           <SettingsView
+            viewerName={production.viewerName}
+            partnerName={production.partnerName}
+            relationshipStartedOn={state.relationshipStartedOn}
             notifications={state.notifications}
             quietHours={state.quietHours}
             onNotifications={async () => {
               if (!state.notifications && "Notification" in window) {
                 const permission = await Notification.requestPermission();
-                if (permission !== "granted") { setToast("اجازه‌ی اعلان داده نشد؛ هر وقت خواستی از تنظیمات مرورگر فعالش کن"); return; }
+                if (permission !== "granted") { setToast({ message: "اجازه‌ی اعلان داده نشد؛ هر وقت خواستی از تنظیمات مرورگر فعالش کن", severity: "error" }); return; }
               }
-              update({ notifications: !state.notifications });
-              setToast(!state.notifications ? "اعلان‌ها فعال شدند" : "اعلان‌ها خاموش شدند");
+              await persist(() => update({ notifications: !state.notifications }), !state.notifications ? "اعلان‌ها فعال شدند" : "اعلان‌ها خاموش شدند", false);
             }}
-            onQuiet={() => update({ quietHours: !state.quietHours })}
-            onReset={async () => { if (production) { await createSupabaseBrowserClient()?.auth.signOut(); router.push("/login"); router.refresh(); } else update({ onboarded: false }); }}
+            onQuiet={() => void persist(() => update({ quietHours: !state.quietHours }), !state.quietHours ? "ساعت آرامش فعال شد" : "ساعت آرامش خاموش شد", false)}
+            onRelationship={() => setModal("relationship")}
+            onSpace={() => setModal("invite")}
+            onReset={async () => { await createSupabaseBrowserClient()?.auth.signOut(); router.push("/login"); router.refresh(); }}
           />
         )}
         </div>
@@ -170,40 +184,22 @@ export function CouplesApp({ production }: { production?: ProductionScope }) {
       {modal === "status" && (
         <StatusSheet
           currentMood={state.mood}
-          currentActivity={state.activity}
+          currentActivity={state.activity ?? ACTIVITIES[0]}
+          partnerName={production.partnerName}
           onClose={() => setModal(null)}
-          onSave={(mood, activity) => { update({ mood, activity }); setModal(null); setToast(`مودت برای ${production?.partnerName || "آرین"} آپدیت شد 💜`); }}
+          onSave={(mood, activity) => void persist(() => update({ mood, activity }), `مودت برای ${production.partnerName} آپدیت شد 💜`)}
         />
       )}
       {modal === "event" && (
-        <EventSheet onClose={() => setModal(null)} onSave={(event) => { update({ events: [event, ...state.events] }); setModal(null); setToast("قرار جدید به تقویم دونفره اضافه شد"); }} />
+        <EventSheet onClose={() => setModal(null)} onSave={(event) => void persist(() => update({ events: [event, ...state.events] }), "قرار جدید به تقویم دونفره اضافه شد")} />
       )}
-      {modal === "cycle" && <CycleSheet cycle={cycle} onClose={() => setModal(null)} onSave={(nextCycle) => { update({ cycle: nextCycle }); setModal(null); setToast("وضعیت چرخه ثبت شد"); }} />}
-      {modal === "intimacy" && <IntimacySheet intimacy={intimacy} onClose={() => setModal(null)} onSave={(nextIntimacy) => { update({ intimacy: nextIntimacy }); setModal(null); setToast(nextIntimacy.signal ? "سیگنالت رفت برای آرین 😏" : "سیگنال برداشته شد، اوکیه 🤍"); }} />}
+      {modal === "cycle" && <CycleSheet cycle={cycleDraft} partnerName={production.partnerName} onClose={() => setModal(null)} onSave={(nextCycle) => void persist(() => update({ cycle: nextCycle }), "وضعیت چرخه ثبت شد")} />}
+      {modal === "intimacy" && <IntimacySheet intimacy={intimacy} partnerName={production.partnerName} onClose={() => setModal(null)} onSave={(nextIntimacy) => void persist(() => update({ intimacy: nextIntimacy }), nextIntimacy.signal ? `سیگنالت رفت برای ${production.partnerName} 😏` : "سیگنال برداشته شد، اوکیه 🤍")} />}
       {modal === "memory" && (
-        <MemorySheet onClose={() => setModal(null)} onSave={(memory) => { update({ memories: [memory, ...state.memories] }); setModal(null); setToast("خاطره‌تون ثبت شد 🤍"); }} />
+        <MemorySheet viewerId={production.userId} viewerName={production.viewerName} onClose={() => setModal(null)} onSave={(memory) => void persist(() => update({ memories: [memory, ...state.memories] }), "خاطره‌تون ثبت شد 🤍")} />
       )}
-      {modal === "invite" && <InviteSheet viewerName={production?.viewerName || "سارا"} partnerName={production?.partnerName || "آرین"} connected={Boolean(production)} onClose={() => setModal(null)} onCopy={() => { navigator.clipboard?.writeText("https://nami.app/join/NAMI-2486"); setToast("لینک دعوت کپی شد"); }} />}
-    </main>
-  );
-}
-
-function Welcome({ onStart }: { onStart: () => void }) {
-  return (
-    <main className="welcome">
-      <section className="welcome-card">
-        <div className="welcome-logo"><Heart size={42} fill="currentColor" /></div>
-        <p className="eyebrow">فضای امن دونفره</p>
-        <h1>به دنیای کوچیک<br />خودتون خوش اومدین</h1>
-        <p className="muted">حال همدیگه رو بدونین، قرارها رو فراموش نکنین و خاطره‌هاتون رو یک‌جا نگه دارین.</p>
-        <div className="mini-features">
-          <div className="mini-feature"><Sparkles size={21} />حال‌و‌هوا</div>
-          <div className="mini-feature"><CalendarDays size={21} />قرارها</div>
-          <div className="mini-feature"><BookHeart size={21} />خاطره‌ها</div>
-        </div>
-        <button className="primary-button" onClick={onStart}>شروع نسخه‌ی نمایشی</button>
-        <p className="muted" style={{ fontSize: 11, margin: "16px 0 0" }}><LockKeyhole size={12} style={{ verticalAlign: "middle" }} /> اطلاعات شما فقط بین خودتان می‌ماند</p>
-      </section>
+      {modal === "relationship" && <RelationshipSheet value={state.relationshipStartedOn} onClose={() => setModal(null)} onSave={(relationshipStartedOn) => void persist(() => update({ relationshipStartedOn }), "تاریخ شروع قصه‌تون ذخیره شد")} />}
+      {modal === "invite" && <InviteSheet viewerName={production.viewerName} partnerName={production.partnerName} onClose={() => setModal(null)} />}
     </main>
   );
 }
@@ -219,33 +215,40 @@ function Header({ viewerName, partnerName, onInvite }: { viewerName: string; par
   );
 }
 
-function HomeView({ state, intimacy, viewerName, partnerName, openStatus, openIntimacy, goTo }: { state: ReturnType<typeof useNamiState>["state"]; intimacy: IntimacyState; viewerName: string; partnerName: string; openStatus: () => void; openIntimacy: () => void; goTo: (tab: Tab) => void }) {
+function relationshipDays(startedOn: string) {
+  const start = parseLocalDate(startedOn);
+  return Math.max(1, Math.floor((tehranToday().getTime() - start.getTime()) / 86400000) + 1);
+}
+
+function HomeView({ state, intimacy, partnerIntimacy, viewerName, partnerName, openStatus, openIntimacy, goTo }: { state: ReturnType<typeof useNamiState>["state"]; intimacy: IntimacyState; partnerIntimacy: IntimacyState | null; viewerName: string; partnerName: string; openStatus: () => void; openIntimacy: () => void; goTo: (tab: Tab) => void }) {
   const next = state.events[0];
+  const visibleIntimacy = partnerIntimacy ?? intimacy;
+  const intimacyOwner = partnerIntimacy ? partnerName : viewerName;
   return <>
     <div className="greeting-row"><div><p className="eyebrow">هی {viewerName} 🫶</p><h1>امروز دلت چه مودیه؟</h1></div><span className="date-chip">امروز</span></div>
     <section className="card hero-card">
-      <div className="hero-title"><div><span className="muted">از روزی که «ما» شدیم</span><div className="together-days">{fa.format(428)} روز</div><span className="muted">پر از ویـب خوب و خاطره ✨</span></div><div className="heart-orbit"><Heart size={31} fill="currentColor" /></div></div>
+      <div className="hero-title"><div><span className="muted">از روزی که «ما» شدین</span><div className="together-days">{fa.format(relationshipDays(state.relationshipStartedOn))} روز</div><span className="muted">پر از ویـب خوب و خاطره ✨</span></div><div className="heart-orbit"><Heart size={31} fill="currentColor" /></div></div>
     </section>
 
     <div className="section-head"><h2>مود دوتامون</h2><button className="text-button" onClick={openStatus}>مودمو عوض کن</button></div>
     <section className="status-grid">
       <div className="card status-card">
-        <div className="status-person"><span className="avatar">س</span><div><strong>تو</strong><small>همین الان</small></div></div>
-        <div className="mood-bubble"><span className="mood-emoji">{state.mood.emoji}</span><strong>{state.mood.label}</strong></div>
-        <div className="activity"><Clock3 size={13} /> {state.activity}</div>
+        <div className="status-person"><span className="avatar">{viewerName.slice(0, 1)}</span><div><strong>تو</strong><small>وضعیت خودت</small></div></div>
+        <div className="mood-bubble"><span className="mood-emoji">{state.mood?.emoji ?? "✨"}</span><strong>{state.mood?.label ?? "هنوز ثبت نشده"}</strong></div>
+        <div className="activity"><Clock3 size={13} /> {state.activity ?? "مودت رو برای اولین بار ثبت کن"}</div>
       </div>
       <div className="card status-card">
         <div className="status-person"><span className="avatar" style={{ background: "var(--rose)" }}>{partnerName.slice(0, 1)}</span><div><strong>{partnerName}</strong><small>آخرین وضعیت</small></div></div>
-        <div className="mood-bubble" style={{ background: "var(--rose-soft)" }}><span className="mood-emoji">{state.partnerMood.emoji}</span><strong>{state.partnerMood.label}</strong></div>
-        <div className="activity"><Clock3 size={13} /> {state.partnerActivity}</div>
+        <div className="mood-bubble" style={{ background: "var(--rose-soft)" }}><span className="mood-emoji">{state.partnerMood?.emoji ?? "🤍"}</span><strong>{state.partnerMood?.label ?? "هنوز ثبت نشده"}</strong></div>
+        <div className="activity"><Clock3 size={13} /> {state.partnerActivity ?? `منتظر اولین آپدیت ${partnerName}`}</div>
       </div>
     </section>
-    <button className="update-card" onClick={openStatus}><span>مودت عوض شد؟ به آرین یه سیگنال بده</span><ChevronLeft size={20} /></button>
+    <button className="update-card" onClick={openStatus}><span>مودت عوض شد؟ به {partnerName} یه سیگنال بده</span><ChevronLeft size={20} /></button>
 
-    <IntimacyCard intimacy={intimacy} onOpen={openIntimacy} />
+    <IntimacyCard intimacy={visibleIntimacy} ownerName={intimacyOwner} isPartnerSignal={Boolean(partnerIntimacy)} onOpen={openIntimacy} />
 
     <div className="section-head"><h2>پلن بعدیمون</h2><button className="text-button" onClick={() => goTo("calendar")}>همه پلن‌ها</button></div>
-    {next && <EventCard event={next} />}
+    {next ? <EventCard event={next} /> : <button className="card memory-preview" onClick={() => goTo("calendar")} style={{ width: "100%", textAlign: "right", color: "inherit" }}><div className="memory-art">📅</div><div><h3>هنوز پلنی ندارین</h3><p>اولین قرار یا مناسبت دوتایی‌تون رو ثبت کنین.</p></div></button>}
 
     <div className="section-head"><h2>آخرین خاطره‌بازی</h2><button className="text-button" onClick={() => goTo("diary")}>آلبوم ما</button></div>
     <button className="card memory-preview" onClick={() => goTo("diary")} style={{ width: "100%", textAlign: "right", color: "inherit" }}>
@@ -254,11 +257,11 @@ function HomeView({ state, intimacy, viewerName, partnerName, openStatus, openIn
   </>;
 }
 
-function IntimacyCard({ intimacy, onOpen }: { intimacy: IntimacyState; onOpen: () => void }) {
+function IntimacyCard({ intimacy, ownerName, isPartnerSignal, onOpen }: { intimacy: IntimacyState; ownerName: string; isPartnerSignal: boolean; onOpen: () => void }) {
   const isActive = useSignalActive(intimacy);
   return <section className="intimacy-card">
-    <div className="intimacy-card-copy"><span className="intimacy-icon"><Flame size={21} fill="currentColor" /></span><div><span className="intimacy-kicker">فقط بین خودتون 🔒</span><h3>{isActive ? `${intimacy.emoji} مودت: ${intimacy.signal}` : "امشب چه ویبی داری؟"}</h3><p>{isActive ? (intimacy.message || "آرین سیگنالت رو می‌بینه و می‌تونه جواب بده") : "فلرت، بغل یا یه مود هات؟ بدون فشار، فقط یه سیگنال کوچیک."}</p></div></div>
-    <button onClick={onOpen}>{isActive ? "عوضش کن" : "بگو ببینم 😏"}<ChevronLeft size={18} /></button>
+    <div className="intimacy-card-copy"><span className="intimacy-icon"><Flame size={21} fill="currentColor" /></span><div><span className="intimacy-kicker">فقط بین خودتون 🔒</span><h3>{isActive ? `${intimacy.emoji} مود ${ownerName}: ${intimacy.signal}` : "امشب چه ویبی داری؟"}</h3><p>{isActive ? (intimacy.message || (isPartnerSignal ? `${ownerName} یه سیگنال برات فرستاده` : `${ownerName} سیگنالت رو می‌بینه`)) : "فلرت، بغل یا یه مود هات؟ بدون فشار، فقط یه سیگنال کوچیک."}</p></div></div>
+    <button onClick={onOpen}>{isActive && !isPartnerSignal ? "عوضش کن" : "جواب بده 😏"}<ChevronLeft size={18} /></button>
   </section>;
 }
 
@@ -267,22 +270,30 @@ function EventCard({ event }: { event: EventItem }) {
 }
 
 function CalendarView({ events }: { events: EventItem[] }) {
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  const days = [30, 31, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 1, 2];
-  const visibleEvents = selectedDay === null ? events : events.filter((event) => event.day === selectedDay && event.month === "شهریور");
+  const [month, setMonth] = useState(() => new DateObject({ date: new Date(), calendar: gregorian, locale: persianFa }).convert(persian));
+  const visibleEvents = events.filter((event) => {
+    if (!event.startsAt) return false;
+    const eventDate = new DateObject({ date: new Date(event.startsAt), calendar: gregorian }).convert(persian, persianFa);
+    return eventDate.year === month.year && eventDate.month.number === month.month.number;
+  });
+  const moveMonth = (amount: number) => setMonth(new DateObject(month).add(amount, "month"));
   return <>
     <p className="eyebrow">پلن‌هامون، یه‌جا ✨</p><h1>تقویم دوتایی</h1>
     <section className="card calendar">
-      <div className="calendar-head"><div><h2 style={{ margin: 0 }}>شهریور ۱۴۰۵</h2><span className="muted" style={{ fontSize: 12 }}>۲۶ مرداد تا ۳۱ شهریور</span></div><div className="month-switch"><button className="icon-button" aria-label="ماه قبل"><ChevronRight size={19} /></button><button className="icon-button" aria-label="ماه بعد"><ChevronLeft size={19} /></button></div></div>
-      <div className="week-grid">{["ش", "ی", "د", "س", "چ", "پ", "ج"].map((d) => <span key={d}>{d}</span>)}</div>
-      <div className="days-grid">{days.map((day, i) => { const inMonth = i >= 2 && i <= 32; return <button key={i} disabled={!inMonth} aria-label={`${fa.format(day)} شهریور`} onClick={() => setSelectedDay(selectedDay === day ? null : day)} className={`day ${!inMonth ? "dim" : ""} ${day === 26 && i === 27 && selectedDay === null ? "today" : ""} ${selectedDay === day && inMonth ? "selected" : ""} ${[8,18,28].includes(day) && inMonth ? "has-event" : ""}`}>{fa.format(day)}</button>; })}</div>
+      <div className="calendar-head"><div><h2 style={{ margin: 0 }}>{month.month.name} {fa.format(month.year)}</h2><span className="muted" style={{ fontSize: 12 }}>{fa.format(visibleEvents.length)} پلن در این ماه</span></div><div className="month-switch"><button className="icon-button" aria-label="ماه قبل" onClick={() => moveMonth(-1)}><ChevronRight size={19} /></button><button className="icon-button" aria-label="ماه بعد" onClick={() => moveMonth(1)}><ChevronLeft size={19} /></button></div></div>
+      <p className="muted" style={{ margin: "18px 0 0" }}>همه‌ی تاریخ‌ها شمسی و ساعت‌ها به وقت تهران نمایش داده می‌شن.</p>
     </section>
-    <div className="section-head"><h2>{selectedDay === null ? "قرارهای پیش رو" : `قرارهای ${fa.format(selectedDay)} شهریور`}</h2>{selectedDay !== null ? <button className="text-button" onClick={() => setSelectedDay(null)}>نمایش همه</button> : <span className="muted">{fa.format(events.length)} قرار</span>}</div>
-    <div className="event-list">{visibleEvents.map((event) => <div className="event-row" key={event.id}><span className="event-dot" /><div><strong>{event.title}</strong><p>{fa.format(event.day)} {event.month} · {event.time} تهران</p></div><button className="icon-button" aria-label={`گزینه‌های ${event.title}`}><MoreHorizontal size={20} color="var(--muted)" /></button></div>)}{visibleEvents.length === 0 && <div className="empty-state"><CalendarDays size={28} /><strong>برای این روز قراری ندارین</strong><span>با دکمه‌ی + یک وقت دونفره بسازین.</span></div>}</div>
+    <div className="section-head"><h2>قرارهای {month.month.name}</h2><span className="muted">{fa.format(visibleEvents.length)} قرار</span></div>
+    <div className="event-list">{visibleEvents.map((event) => <div className="event-row" key={event.id}><span className="event-dot" /><div><strong>{event.title}</strong><p>{fa.format(event.day)} {event.month} · {event.time} تهران</p><small className="muted">یادآوری: {event.reminder}</small></div></div>)}{visibleEvents.length === 0 && <div className="empty-state"><CalendarDays size={28} /><strong>این ماه هنوز قراری ندارین</strong><span>با دکمه‌ی + یک وقت دونفره بسازین.</span></div>}</div>
   </>;
 }
 
-function CycleView({ cycle, onLog, onShare }: { cycle: CycleState; onLog: () => void; onShare: () => void }) {
+function CycleView({ cycle, partnerName, onLog, onShare }: { cycle: CycleState | null; partnerName: string; onLog: () => void; onShare: () => void }) {
+  if (!cycle) return <>
+    <div className="cycle-heading"><div><p className="eyebrow">شناخت بهتر بدن</p><h1>چرخه‌ی من</h1></div></div>
+    <section className="card empty-state" style={{ padding: 32 }}><Droplets size={34} /><strong>هنوز چرخه‌ای ثبت نشده</strong><span>با ثبت تاریخ آخرین پریود، تخمین‌های شخصی خودت ساخته می‌شن.</span><button className="primary-button" onClick={onLog}>ثبت اولین چرخه</button></section>
+    <div className="cycle-disclaimer"><ShieldCheck size={18} /><p>تاریخ‌ها تخمینی‌اند و برای پیشگیری از بارداری یا تشخیص پزشکی مناسب نیستند.</p></div>
+  </>;
   const info = cycleInfo(cycle);
   const progress = Math.min(100, Math.round((info.cycleDay / cycle.cycleLength) * 100));
   const nextSeven = Array.from({ length: 7 }, (_, index) => addDays(tehranToday(), index));
@@ -291,7 +302,7 @@ function CycleView({ cycle, onLog, onShare }: { cycle: CycleState; onLog: () => 
       <div><p className="eyebrow">شناخت بهتر بدن</p><h1>چرخه‌ی من</h1></div>
       <button className="privacy-chip" onClick={onShare} aria-pressed={cycle.sharedWithPartner}>
         {cycle.sharedWithPartner ? <UsersRound size={15} /> : <LockKeyhole size={15} />}
-        {cycle.sharedWithPartner ? "مشترک با آرین" : "فقط برای من"}
+        {cycle.sharedWithPartner ? `مشترک با ${partnerName}` : "فقط برای من"}
       </button>
     </div>
 
@@ -329,21 +340,22 @@ function CycleView({ cycle, onLog, onShare }: { cycle: CycleState; onLog: () => 
 function DiaryView({ memories }: { memories: MemoryItem[] }) {
   return <>
     <p className="eyebrow">آرشیوِ «یادته؟»‌هامون</p><h1>خاطره‌بازی</h1><p className="muted">از دیت‌های خفن تا لحظه‌های کوچیکی که دلمون نمیاد یادمون بره.</p>
-    <div className="timeline">{memories.map((memory, index) => <article className="card memory-card" key={memory.id}><div className={`memory-photo ${index % 2 ? "alt" : ""}`}>{memory.emoji}</div><div className="memory-content"><div className="memory-meta"><span>{memory.date}</span><span>نوشته‌ی سارا</span></div><h2 style={{ margin: "10px 0 0" }}>{memory.title}</h2><p>{memory.body}</p>{memory.reply && <div className="reply"><span className="avatar">آ</span><span><strong>آرین</strong><br />{memory.reply}</span></div>}</div></article>)}</div>
+    <div className="timeline">{memories.map((memory, index) => <article className="card memory-card" key={memory.id}><div className={`memory-photo ${index % 2 ? "alt" : ""}`}>{memory.emoji}</div><div className="memory-content"><div className="memory-meta"><span>{memory.date}</span><span>نوشته‌ی {memory.authorName}</span></div><h2 style={{ margin: "10px 0 0" }}>{memory.title}</h2><p>{memory.body}</p>{memory.reply && <div className="reply"><span className="avatar">{memory.replyAuthorName?.slice(0, 1)}</span><span><strong>{memory.replyAuthorName}</strong><br />{memory.reply}</span></div>}</div></article>)}{memories.length === 0 && <div className="empty-state"><BookHeart size={30} /><strong>دفترتون هنوز سفیده</strong><span>با دکمه‌ی + اولین خاطره‌ی واقعی‌تون رو ثبت کنین.</span></div>}</div>
   </>;
 }
 
-function SettingsView({ notifications, quietHours, onNotifications, onQuiet, onReset }: { notifications: boolean; quietHours: boolean; onNotifications: () => void; onQuiet: () => void; onReset: () => void }) {
+function SettingsView({ viewerName, partnerName, relationshipStartedOn, notifications, quietHours, onNotifications, onQuiet, onRelationship, onSpace, onReset }: { viewerName: string; partnerName: string; relationshipStartedOn: string; notifications: boolean; quietHours: boolean; onNotifications: () => void; onQuiet: () => void; onRelationship: () => void; onSpace: () => void; onReset: () => void }) {
+  const relationshipDate = new Intl.DateTimeFormat("fa-IR-u-ca-persian", { dateStyle: "long", timeZone: TEHRAN_TIME_ZONE }).format(new Date(`${relationshipStartedOn}T12:00:00${TEHRAN_OFFSET}`));
   return <>
     <p className="eyebrow">همه‌چی همون‌جوری که تو می‌خوای</p><h1>تنظیماتِ خودمونی</h1>
-    <section className="card" style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 22 }}><span className="avatar" style={{ width: 58, height: 58, border: 0, fontSize: 20 }}>س</span><div><h2 style={{ margin: 0 }}>سارا محمدی</h2><span className="muted">همراه آرین از ۲۲ تیر ۱۴۰۴</span></div></section>
+    <section className="card" style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 22 }}><span className="avatar" style={{ width: 58, height: 58, border: 0, fontSize: 20 }}>{viewerName.slice(0, 1)}</span><div><h2 style={{ margin: 0 }}>{viewerName}</h2><span className="muted">همراه {partnerName} از {relationshipDate}</span></div></section>
     <div className="settings-list">
-      <Setting icon={BellRing} title="اعلان‌های نامی" subtitle="تغییر حال و یادآوری قرارها" action={<Switch checked={notifications} onChange={onNotifications} slotProps={{ input: { "aria-label": "تغییر اعلان‌ها" } }} />} />
+      <Setting icon={BellRing} title="اعلان‌های نامی" subtitle="اعلان‌های مرورگر هنگام باز بودن نامی" action={<Switch checked={notifications} onChange={onNotifications} slotProps={{ input: { "aria-label": "تغییر اعلان‌ها" } }} />} />
       <Setting icon={Moon} title="ساعت آرامش" subtitle="از ۲۳ شب تا ۸ صبح" action={<Switch checked={quietHours} onChange={onQuiet} slotProps={{ input: { "aria-label": "تغییر ساعت آرامش" } }} />} />
-      <Setting icon={Clock3} title="زمان و تاریخ" subtitle="تقویم شمسی · تهران (+۰۳:۳۰)" action={<ChevronLeft size={20} />} />
-      <Setting icon={UserRound} title="حساب و پروفایل" subtitle="نام، تصویر و رمز عبور" action={<ChevronLeft size={20} />} />
-      <Setting icon={UsersRound} title="فضای دونفره" subtitle="کد دعوت و اطلاعات همراه" action={<ChevronLeft size={20} />} />
-      <Setting icon={ShieldCheck} title="حریم خصوصی" subtitle="اطلاعات و دسترسی‌ها" action={<ChevronLeft size={20} />} />
+      <button className="setting-row" onClick={onRelationship}><span className="setting-icon"><Heart size={20} /></span><div><strong>شروع قصه‌مون</strong><p>{relationshipDate}</p></div><ChevronLeft size={20} /></button>
+      <Setting icon={Clock3} title="زمان و تاریخ" subtitle="تقویم شمسی · تهران (+۰۳:۳۰)" action={<span />} />
+      <button className="setting-row" onClick={onSpace}><span className="setting-icon"><UsersRound size={20} /></span><div><strong>فضای دونفره</strong><p>{viewerName} و {partnerName} · اتصال فعال</p></div><ChevronLeft size={20} /></button>
+      <Setting icon={ShieldCheck} title="حریم خصوصی" subtitle="داده‌ها فقط برای اعضای همین زوج قابل مشاهده‌اند" action={<span />} />
       <button className="setting-row" onClick={onReset}><span className="setting-icon" style={{ color: "#b65059", background: "var(--rose-soft)" }}><LogOut size={20} /></span><div><strong>خروج از حساب</strong><p>بازگشت به صفحه‌ی ورود</p></div><ChevronLeft size={20} /></button>
     </div>
     <p className="muted" style={{ textAlign: "center", fontSize: 11, marginTop: 24 }}>نامی نسخه ۰.۱ · ساخته شده برای شما دوتا 🤍</p>
@@ -358,9 +370,9 @@ function Sheet({ children, onClose }: { children: React.ReactNode; onClose: () =
   return <SwipeableDrawer anchor="bottom" open onClose={onClose} onOpen={() => undefined} disableDiscovery swipeAreaWidth={0} sx={{ "& .MuiDrawer-paper": { width: "min(100%, 620px)", maxHeight: "92dvh", marginInline: "auto", borderRadius: "30px 30px 0 0", overflow: "auto", backgroundImage: "none" } }}><section className="sheet" role="dialog" aria-modal="true"><div className="sheet-handle" /><button className="icon-button" aria-label="بستن" onClick={onClose} style={{ position: "absolute", left: 18, top: 18 }}><X size={18} /></button>{children}</section></SwipeableDrawer>;
 }
 
-function StatusSheet({ currentMood, currentActivity, onClose, onSave }: { currentMood: { emoji: string; label: string }; currentActivity: string; onClose: () => void; onSave: (m: { emoji: string; label: string }, a: string) => void }) {
-  const [mood, setMood] = useState(currentMood); const [activity, setActivity] = useState(currentActivity);
-  return <Sheet onClose={onClose}><p className="eyebrow">یه آپدیت کوچولو برای آرین</p><h2>الان چه مود و فازی داری؟</h2><div className="choice-grid">{MOODS.map((m) => <button key={m.label} className={`choice ${m.label === mood.label ? "selected" : ""}`} onClick={() => setMood(m)}><span>{m.emoji}</span>{m.label}</button>)}</div><div className="field"><label>الان درگیر چی‌ای؟</label><select className="input" value={activity} onChange={(e) => setActivity(e.target.value)}>{ACTIVITIES.map((a) => <option key={a}>{a}</option>)}</select></div><button className="primary-button" onClick={() => onSave(mood, activity)}>مودمو بفرست ✨</button></Sheet>;
+function StatusSheet({ currentMood, currentActivity, partnerName, onClose, onSave }: { currentMood: { emoji: string; label: string } | null; currentActivity: string; partnerName: string; onClose: () => void; onSave: (m: { emoji: string; label: string }, a: string) => void }) {
+  const [mood, setMood] = useState<{ emoji: string; label: string }>(currentMood ?? MOODS[0]); const [activity, setActivity] = useState(currentActivity);
+  return <Sheet onClose={onClose}><p className="eyebrow">یه آپدیت کوچولو برای {partnerName}</p><h2>الان چه مود و فازی داری؟</h2><div className="choice-grid">{MOODS.map((m) => <button key={m.label} className={`choice ${m.label === mood.label ? "selected" : ""}`} onClick={() => setMood(m)}><span>{m.emoji}</span>{m.label}</button>)}</div><div className="field"><label>الان درگیر چی‌ای؟</label><select className="input" value={activity} onChange={(e) => setActivity(e.target.value)}>{ACTIVITIES.map((a) => <option key={a}>{a}</option>)}</select></div><button className="primary-button" onClick={() => onSave(mood, activity)}>مودمو بفرست ✨</button></Sheet>;
 }
 
 function EventSheet({ onClose, onSave }: { onClose: () => void; onSave: (e: EventItem) => void }) {
@@ -386,7 +398,7 @@ function EventSheet({ onClose, onSave }: { onClose: () => void; onSave: (e: Even
   return <Sheet onClose={onClose}><p className="eyebrow">یه تایم خوب برای دوتاتون</p><h2>پلن تازه ✨</h2><form onSubmit={submit}><div className="field"><label>اسم پلن</label><input className="input" name="title" required placeholder="مثلاً شام دونفره" /></div><div className="field"><label>تاریخ شمسی</label><DatePicker value={jalaliPickerValue(eventDate)} onChange={(value) => { if (value instanceof DateObject) setEventDate(value.convert(gregorian).format("YYYY-MM-DD")); }} calendar={persian} locale={persianFa} format="YYYY/MM/DD" calendarPosition="bottom-right" inputClass="input jalali-input" containerClassName="datepicker-container" /></div><div className="field"><label>ساعت <span className="timezone-label">به وقت تهران (+۰۳:۳۰)</span></label><input className="input time-input" value={eventTime} onChange={(event) => setEventTime(event.target.value)} type="time" /></div><div className="field"><label>کی یادت بندازم؟</label><select className="input" name="reminder"><option>یک روز قبل</option><option>یک هفته قبل</option><option>یک ماه قبل</option><option>همان موقع</option></select></div><div className="timezone-note"><Clock3 size={15} /> همه‌ی ساعت‌ها با منطقه‌ی زمانی تهران ذخیره می‌شن.</div><button className="primary-button" type="submit">بذار توی تقویممون</button></form></Sheet>;
 }
 
-function CycleSheet({ cycle, onClose, onSave }: { cycle: CycleState; onClose: () => void; onSave: (cycle: CycleState) => void }) {
+function CycleSheet({ cycle, partnerName, onClose, onSave }: { cycle: CycleState; partnerName: string; onClose: () => void; onSave: (cycle: CycleState) => void }) {
   const [selectedSymptoms, setSelectedSymptoms] = useState(cycle.symptoms);
   const [periodStart, setPeriodStart] = useState(cycle.lastPeriodStart);
   const symptoms = ["گرفتگی", "سردرد", "نفخ", "خستگی", "حساسیت", "انرژی خوب", "خلق آرام", "بی‌خوابی"];
@@ -408,12 +420,12 @@ function CycleSheet({ cycle, onClose, onSave }: { cycle: CycleState; onClose: ()
     <div className="form-columns"><div className="field"><label>طول چرخه</label><div className="number-field"><input className="input" type="number" name="cycleLength" defaultValue={cycle.cycleLength} min="20" max="45" required /><span>روز</span></div></div><div className="field"><label>طول پریود</label><div className="number-field"><input className="input" type="number" name="periodLength" defaultValue={cycle.periodLength} min="2" max="10" required /><span>روز</span></div></div></div>
     <div className="field"><label>امروز چه حسی داری؟</label><div className="symptom-picker">{symptoms.map((symptom) => <button type="button" key={symptom} className={selectedSymptoms.includes(symptom) ? "selected" : ""} onClick={() => toggleSymptom(symptom)}>{symptom}</button>)}</div></div>
     <div className="field"><label>یادداشت اختیاری</label><textarea className="input compact-textarea" name="note" defaultValue={cycle.note} placeholder="مثلاً امروز کمی استراحت بیشتر لازم داشتم..." /></div>
-    <label className="share-control"><span><UsersRound size={19} /><span><strong>نمایش برای آرین</strong><small>فاز چرخه و تخمین پریود بعدی را می‌بیند</small></span></span><input type="checkbox" name="sharedWithPartner" defaultChecked={cycle.sharedWithPartner} /></label>
+    <label className="share-control"><span><UsersRound size={19} /><span><strong>نمایش برای {partnerName}</strong><small>فاز چرخه و تخمین پریود بعدی را می‌بیند</small></span></span><input type="checkbox" name="sharedWithPartner" defaultChecked={cycle.sharedWithPartner} /></label>
     <button className="primary-button" type="submit">ذخیره وضعیت</button>
   </form></Sheet>;
 }
 
-function IntimacySheet({ intimacy, onClose, onSave }: { intimacy: IntimacyState; onClose: () => void; onSave: (intimacy: IntimacyState) => void }) {
+function IntimacySheet({ intimacy, partnerName, onClose, onSave }: { intimacy: IntimacyState; partnerName: string; onClose: () => void; onSave: (intimacy: IntimacyState) => void }) {
   const moods = [
     { emoji: "😏", label: "فاز فلرت" },
     { emoji: "🔥", label: "هورنی‌ام" },
@@ -441,18 +453,22 @@ function IntimacySheet({ intimacy, onClose, onSave }: { intimacy: IntimacyState;
     <div className="field"><label>یه پیام کوچولو هم داری؟ <span className="optional">اختیاریه</span></label><textarea className="input compact-textarea" value={message} maxLength={180} onChange={(event) => setMessage(event.target.value)} placeholder="مثلاً: امشب دلم یه دیت خونه‌گی با تو می‌خواد..." /><small className="char-count">{fa.format(message.length)} / ۱۸۰</small></div>
     <label className="consent-check"><input type="checkbox" checked={adultConfirmed} onChange={(event) => setAdultConfirmed(event.target.checked)} /><span><strong>هر دومون ۱۸+ هستیم</strong><small>و می‌دونم این فقط یک دعوت محترمانه‌ست؛ رضایت دوطرفه لازمه.</small></span></label>
     <div className="intimacy-expiry"><Clock3 size={16} /><span>این سیگنال بعد از ۶ ساعت خودکار محو می‌شه.</span></div>
-    <button className="primary-button hot-button" disabled={!adultConfirmed || !selected} onClick={send}>بفرست برای آرین 🔥</button>
+    <button className="primary-button hot-button" disabled={!adultConfirmed || !selected} onClick={send}>بفرست برای {partnerName} 🔥</button>
     {stillActive && <button className="secondary-button withdraw-button" onClick={withdraw}>بی‌خیالش شدم، سیگنال رو بردار</button>}
   </Sheet>;
 }
 
-function MemorySheet({ onClose, onSave }: { onClose: () => void; onSave: (m: MemoryItem) => void }) {
+function MemorySheet({ viewerId, viewerName, onClose, onSave }: { viewerId: string; viewerName: string; onClose: () => void; onSave: (m: MemoryItem) => void }) {
   const [emoji, setEmoji] = useState("🤍");
-  const submit = (e: FormEvent<HTMLFormElement>) => { e.preventDefault(); const data = new FormData(e.currentTarget); onSave({ id: crypto.randomUUID(), title: String(data.get("title")), body: String(data.get("body")), date: "امروز", emoji }); };
-  return <Sheet onClose={onClose}><p className="eyebrow">یک لحظه برای همیشه</p><h2>خاطره‌ی تازه</h2><form onSubmit={submit}><div className="field"><label>حال‌وهوای خاطره</label><div className="choice-grid">{["🤍","☕","🌿","🌊"].map((item) => <button type="button" key={item} className={`choice ${emoji === item ? "selected" : ""}`} onClick={() => setEmoji(item)}><span>{item}</span></button>)}</div></div><div className="field"><label>عنوان</label><input className="input" name="title" required placeholder="اسم این خاطره..." /></div><div className="field"><label>چی شد؟</label><textarea className="input" name="body" required placeholder="هر چیزی که دوست داری یادتون بمونه..." /></div><button type="button" className="secondary-button" style={{ marginBottom: 10 }}><ImagePlus size={18} style={{ verticalAlign: "middle" }} /> افزودن عکس</button><button className="primary-button" type="submit">ثبت در دفتر ما</button></form></Sheet>;
+  const submit = (e: FormEvent<HTMLFormElement>) => { e.preventDefault(); const data = new FormData(e.currentTarget); onSave({ id: crypto.randomUUID(), title: String(data.get("title")), body: String(data.get("body")), date: "امروز", emoji, authorId: viewerId, authorName: viewerName }); };
+  return <Sheet onClose={onClose}><p className="eyebrow">یک لحظه برای همیشه</p><h2>خاطره‌ی تازه</h2><form onSubmit={submit}><div className="field"><label>حال‌وهوای خاطره</label><div className="choice-grid">{["🤍","☕","🌿","🌊"].map((item) => <button type="button" key={item} className={`choice ${emoji === item ? "selected" : ""}`} onClick={() => setEmoji(item)}><span>{item}</span></button>)}</div></div><div className="field"><label>عنوان</label><input className="input" name="title" required maxLength={120} placeholder="اسم این خاطره..." /></div><div className="field"><label>چی شد؟</label><textarea className="input" name="body" required maxLength={5000} placeholder="هر چیزی که دوست داری یادتون بمونه..." /></div><button className="primary-button" type="submit">ثبت در دفتر ما</button></form></Sheet>;
 }
 
-function InviteSheet({ viewerName, partnerName, connected, onClose, onCopy }: { viewerName: string; partnerName: string; connected: boolean; onClose: () => void; onCopy: () => void }) {
-  if (connected) return <Sheet onClose={onClose}><p className="eyebrow">فضای خصوصی شما 🔒</p><h2>{viewerName} و {partnerName}</h2><div className="card" style={{ textAlign: "center", boxShadow: "none", marginBottom: 16 }}><UsersRound size={38} color="var(--primary)" /><p className="muted" style={{ margin: "12px 0 4px" }}>اتصال دوتایی فعاله</p><strong>فقط شما دوتا به این فضا دسترسی دارین</strong></div><p className="muted" style={{ fontSize: 12 }}>مودها، پلن‌ها، خاطره‌ها و سیگنال‌ها با قوانین امنیتی دیتابیس فقط بین شما به اشتراک گذاشته می‌شن.</p><button className="primary-button" onClick={onClose}>اوکی، بریم ادامه بدیم</button></Sheet>;
-  return <Sheet onClose={onClose}><p className="eyebrow">فضای خصوصی شما</p><h2>{viewerName} و {partnerName}</h2><div className="card" style={{ textAlign: "center", boxShadow: "none", marginBottom: 16 }}><UsersRound size={38} color="var(--primary)" /><p className="muted" style={{ margin: "12px 0 4px" }}>کد دعوت دونفره</p><strong style={{ fontSize: 27, letterSpacing: 3, direction: "ltr", display: "block" }}>NAMI-2486</strong></div><p className="muted" style={{ fontSize: 13 }}>این لینک فقط یک‌بار قابل استفاده است و بعد از ۲۴ ساعت منقضی می‌شود.</p><button className="primary-button" onClick={onCopy}>کپی لینک دعوت</button></Sheet>;
+function RelationshipSheet({ value, onClose, onSave }: { value: string; onClose: () => void; onSave: (date: string) => void }) {
+  const [date, setDate] = useState(value);
+  return <Sheet onClose={onClose}><p className="eyebrow">شروع قصه‌ی شما</p><h2>از کی «ما» شدین؟</h2><div className="field"><label>تاریخ شروع <span className="timezone-label">تقویم شمسی</span></label><DatePicker value={jalaliPickerValue(date)} onChange={(next) => { if (next instanceof DateObject) setDate(next.convert(gregorian).format("YYYY-MM-DD")); }} maxDate={tehranToday()} calendar={persian} locale={persianFa} format="YYYY/MM/DD" calendarPosition="bottom-right" inputClass="input jalali-input" containerClassName="datepicker-container" /></div><button className="primary-button" onClick={() => onSave(date)}>ذخیره تاریخ</button></Sheet>;
+}
+
+function InviteSheet({ viewerName, partnerName, onClose }: { viewerName: string; partnerName: string; onClose: () => void }) {
+  return <Sheet onClose={onClose}><p className="eyebrow">فضای خصوصی شما 🔒</p><h2>{viewerName} و {partnerName}</h2><div className="card" style={{ textAlign: "center", boxShadow: "none", marginBottom: 16 }}><UsersRound size={38} color="var(--primary)" /><p className="muted" style={{ margin: "12px 0 4px" }}>اتصال دوتایی فعاله</p><strong>فقط شما دوتا به این فضا دسترسی دارین</strong></div><p className="muted" style={{ fontSize: 12 }}>مودها، پلن‌ها، خاطره‌ها و سیگنال‌ها با قوانین امنیتی دیتابیس فقط بین شما به اشتراک گذاشته می‌شن.</p><button className="primary-button" onClick={onClose}>اوکی، بریم ادامه بدیم</button></Sheet>;
 }
