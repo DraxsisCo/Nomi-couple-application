@@ -1,0 +1,14 @@
+{
+  "name": "نامی | دنیای دونفره ما",
+  "short_name": "نامی",
+  "description": "فضای خصوصی دونفره برای حال‌و‌هوا، خاطره‌ها و قرارهای مشترک",
+  "lang": "fa",
+  "dir": "rtl",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f5fb",
+  "theme_color": "#6f5bd3",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

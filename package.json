@@ -1,0 +1,34 @@
+{
+  "name": "nami-couples-pwa",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@fontsource-variable/vazirmatn": "^5.3.0",
+    "@mui/material": "^9.4.0",
+    "@supabase/ssr": "latest",
+    "@supabase/supabase-js": "latest",
+    "lucide-react": "latest",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-multi-date-picker": "^4.5.2"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "eslint": "latest",
+    "eslint-config-next": "latest",
+    "typescript": "latest"
+  }
+}
