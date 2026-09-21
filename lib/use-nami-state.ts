@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CycleState, EventItem, IntimacyState, MemoryItem, MoodState } from "./types";
+import { ChallengeDeck, ChallengeResponse, ChallengeState, CouplePoke, CycleState, DailyAnswer, EventItem, FunPreferences, IntimacyState, MemoryItem, MoodState, PokeKind } from "./types";
 import { createSupabaseBrowserClient } from "./supabase/client";
+import { sendFunPush } from "./push";
 
 export type ProductionScope = {
   userId: string;
@@ -33,6 +34,10 @@ export type NamiState = {
   partnerAvatarPath: string | null;
   viewerAvatarUrl: string | null;
   partnerAvatarUrl: string | null;
+  dailyAnswers: DailyAnswer[];
+  pokes: CouplePoke[];
+  challengeResponses: ChallengeResponse[];
+  funPreferences: FunPreferences;
 };
 
 type SupabaseError = { message: string; code?: string; hint?: string | null; details?: string | null };
@@ -73,6 +78,10 @@ function initialState(scope: ProductionScope): NamiState {
     partnerAvatarPath: null,
     viewerAvatarUrl: null,
     partnerAvatarUrl: null,
+    dailyAnswers: [],
+    pokes: [],
+    challengeResponses: [],
+    funPreferences: { viewerAdultEnabled: false, partnerAdultEnabled: false, bothAdultsConfirmed: false, adultDeckUnlocked: false },
   };
 }
 
@@ -118,7 +127,8 @@ export function useNamiState(scope: ProductionScope) {
     const client = createSupabaseBrowserClient();
     if (!client) { setError("اتصال امن نامی به سرور تنظیم نشده."); setReady(true); return; }
     try {
-      const [statuses, events, entries, settings, log, prefs, signals, profiles, couple] = await Promise.all([
+      const today = tehranDateDaysAgo(0);
+      const [statuses, events, entries, settings, log, prefs, signals, profiles, couple, dailyAnswers, pokes, challengeResponses, funPreferences] = await Promise.all([
         client.from("statuses").select("*").eq("couple_id", scope.coupleId),
         client.from("events").select("*").eq("couple_id", scope.coupleId).gte("starts_at", new Date().toISOString()).order("starts_at"),
         client.from("diary_entries").select("*, diary_replies(body, author_id, created_at)").eq("couple_id", scope.coupleId).order("happened_on", { ascending: false }).order("created_at", { ascending: false }),
@@ -128,8 +138,12 @@ export function useNamiState(scope: ProductionScope) {
         client.from("intimacy_signals").select("*").eq("couple_id", scope.coupleId).is("withdrawn_at", null).gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }),
         client.from("profiles").select("id, display_name, avatar_path, adult_confirmed_at").in("id", [scope.userId, scope.partnerId]),
         client.from("couples").select("relationship_started_on, created_at").eq("id", scope.coupleId).single(),
+        client.from("daily_answers").select("id, user_id, answer, reaction, created_at").eq("couple_id", scope.coupleId).eq("prompt_on", today),
+        client.from("couple_pokes").select("id, sender_id, kind, message, seen_at, created_at").eq("couple_id", scope.coupleId).gte("created_at", new Date(Date.now() - 86400000).toISOString()).order("created_at", { ascending: false }).limit(20),
+        client.from("challenge_responses").select("id, user_id, challenge_key, deck, state, updated_at").eq("couple_id", scope.coupleId).eq("challenge_on", today),
+        client.from("fun_preferences").select("user_id, adult_deck_enabled").in("user_id", [scope.userId, scope.partnerId]),
       ]);
-      const failed = [statuses, events, entries, settings, log, prefs, signals, profiles, couple].find((result) => result.error);
+      const failed = [statuses, events, entries, settings, log, prefs, signals, profiles, couple, dailyAnswers, pokes, challengeResponses, funPreferences].find((result) => result.error);
       throwIfError(failed?.error as SupabaseError | null, "اطلاعات");
       const own = statuses.data?.find((item) => item.user_id === scope.userId);
       const partner = statuses.data?.find((item) => item.user_id !== scope.userId);
@@ -145,6 +159,9 @@ export function useNamiState(scope: ProductionScope) {
         signedAvatarUrl(client, partnerProfile?.avatar_path),
       ]);
       const adultConfirmed = Boolean(viewerProfile?.adult_confirmed_at);
+      const bothAdultsConfirmed = Boolean(viewerProfile?.adult_confirmed_at && partnerProfile?.adult_confirmed_at);
+      const viewerAdultEnabled = Boolean(funPreferences.data?.find((item) => item.user_id === scope.userId)?.adult_deck_enabled);
+      const partnerAdultEnabled = Boolean(funPreferences.data?.find((item) => item.user_id === scope.partnerId)?.adult_deck_enabled);
       const ownSignal = signals.data?.find((item) => item.sender_id === scope.userId);
       const partnerSignal = signals.data?.find((item) => item.sender_id !== scope.userId);
       setState((current) => ({
@@ -173,6 +190,10 @@ export function useNamiState(scope: ProductionScope) {
         viewerAvatarUrl,
         partnerAvatarUrl,
         relationshipStartedOn: couple.data?.relationship_started_on ?? String(couple.data?.created_at ?? scope.relationshipStartedOn).slice(0, 10),
+        dailyAnswers: dailyAnswers.data?.map((row) => ({ id: row.id, userId: row.user_id, answer: row.answer, reaction: row.reaction, createdAt: row.created_at })) ?? [],
+        pokes: pokes.data?.map((row) => ({ id: row.id, senderId: row.sender_id, kind: row.kind as PokeKind, message: row.message, seenAt: row.seen_at, createdAt: row.created_at })) ?? [],
+        challengeResponses: challengeResponses.data?.map((row) => ({ id: row.id, userId: row.user_id, challengeKey: row.challenge_key, deck: row.deck as ChallengeDeck, state: row.state as ChallengeState, updatedAt: row.updated_at })) ?? [],
+        funPreferences: { viewerAdultEnabled, partnerAdultEnabled, bothAdultsConfirmed, adultDeckUnlocked: viewerAdultEnabled && partnerAdultEnabled && bothAdultsConfirmed },
       }));
       setError(null);
     } catch (loadError) {
@@ -198,6 +219,9 @@ export function useNamiState(scope: ProductionScope) {
       .on("postgres_changes", { event: "*", schema: "public", table: "events", filter: `couple_id=eq.${scope.coupleId}` }, (payload) => { const row = payload.new as Record<string, unknown>; if (row.created_by && row.created_by !== scope.userId) notifyPartnerUpdate("یه پلن تازه دارین 📅", `${stateRef.current.partnerName} تقویم دوتایی‌تون را به‌روز کرد.`); reload(); })
       .on("postgres_changes", { event: "*", schema: "public", table: "diary_entries", filter: `couple_id=eq.${scope.coupleId}` }, reload)
       .on("postgres_changes", { event: "*", schema: "public", table: "intimacy_signals", filter: `couple_id=eq.${scope.coupleId}` }, (payload) => { const row = payload.new as Record<string, unknown>; if (row.sender_id && row.sender_id !== scope.userId) notifyPartnerUpdate("یه پیام خصوصی توی نامی داری 🔒", `${stateRef.current.partnerName} یه سیگنال دوتایی فرستاده.`); reload(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "daily_answers", filter: `couple_id=eq.${scope.coupleId}` }, reload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "couple_pokes", filter: `couple_id=eq.${scope.coupleId}` }, reload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "challenge_responses", filter: `couple_id=eq.${scope.coupleId}` }, reload)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${scope.userId}` }, reload)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${scope.partnerId}` }, reload)
       .subscribe((status, channelError) => { if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.error("[Nami] realtime", status, channelError); });
@@ -205,6 +229,8 @@ export function useNamiState(scope: ProductionScope) {
       .on("postgres_changes", { event: "*", schema: "public", table: "cycle_settings", filter: `user_id=eq.${scope.userId}` }, reload)
       .on("postgres_changes", { event: "*", schema: "public", table: "cycle_logs", filter: `user_id=eq.${scope.userId}` }, reload)
       .on("postgres_changes", { event: "*", schema: "public", table: "notification_preferences", filter: `user_id=eq.${scope.userId}` }, reload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "fun_preferences", filter: `user_id=eq.${scope.userId}` }, reload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "fun_preferences", filter: `user_id=eq.${scope.partnerId}` }, reload)
       .subscribe((status, channelError) => { if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.error("[Nami] realtime", status, channelError); });
     return () => { void client.removeChannel(coupleChannel); void client.removeChannel(privateChannel); };
   }, [scope, load]);
@@ -279,5 +305,82 @@ export function useNamiState(scope: ProductionScope) {
     }
   }, [scope, load]);
 
-  return { state, update, updateProfile, ready, error, reload: load };
+  const answerDaily = useCallback(async (promptKey: string, answer: string) => {
+    const client = createSupabaseBrowserClient();
+    const cleanAnswer = answer.trim();
+    if (!client) throw new Error("اتصال امن نامی به سرور تنظیم نشده.");
+    if (!cleanAnswer || cleanAnswer.length > 500) throw new Error("جوابت باید بین ۱ تا ۵۰۰ کاراکتر باشه.");
+    const isFirstAnswer = !stateRef.current.dailyAnswers.some((item) => item.userId === scope.userId);
+    const result = await client.from("daily_answers").upsert({
+      couple_id: scope.coupleId,
+      prompt_on: tehranDateDaysAgo(0),
+      prompt_key: promptKey,
+      user_id: scope.userId,
+      answer: cleanAnswer,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "couple_id,prompt_on,user_id" }).select("id").single();
+    throwIfError(result.error, "جواب امروز");
+    await load();
+    if (isFirstAnswer && result.data?.id) void sendFunPush("daily_answer", result.data.id);
+  }, [scope, load]);
+
+  const reactToDaily = useCallback(async (reaction: string) => {
+    const client = createSupabaseBrowserClient();
+    if (!client) throw new Error("اتصال امن نامی به سرور تنظیم نشده.");
+    const result = await client.from("daily_answers").update({ reaction, updated_at: new Date().toISOString() }).eq("couple_id", scope.coupleId).eq("prompt_on", tehranDateDaysAgo(0)).eq("user_id", scope.userId);
+    throwIfError(result.error, "ری‌اکشن");
+    await load();
+  }, [scope, load]);
+
+  const sendPoke = useCallback(async (kind: PokeKind, message: string) => {
+    const client = createSupabaseBrowserClient();
+    const cleanMessage = message.trim();
+    if (!client) throw new Error("اتصال امن نامی به سرور تنظیم نشده.");
+    if (cleanMessage.length > 80) throw new Error("پیام تلنگر باید حداکثر ۸۰ کاراکتر باشه.");
+    const result = await client.from("couple_pokes").insert({ couple_id: scope.coupleId, sender_id: scope.userId, kind, message: cleanMessage }).select("id").single();
+    throwIfError(result.error, "تلنگر");
+    await load();
+    if (result.data?.id) void sendFunPush("poke", result.data.id);
+  }, [scope, load]);
+
+  const markPokesSeen = useCallback(async () => {
+    const client = createSupabaseBrowserClient();
+    if (!client) return;
+    const ids = stateRef.current.pokes.filter((poke) => poke.senderId !== scope.userId && !poke.seenAt).map((poke) => poke.id);
+    if (!ids.length) return;
+    const result = await client.from("couple_pokes").update({ seen_at: new Date().toISOString() }).in("id", ids);
+    throwIfError(result.error, "تلنگرها");
+    await load();
+  }, [scope.userId, load]);
+
+  const setChallengeState = useCallback(async (challengeKey: string, deck: ChallengeDeck, challengeState: ChallengeState) => {
+    const client = createSupabaseBrowserClient();
+    if (!client) throw new Error("اتصال امن نامی به سرور تنظیم نشده.");
+    const result = await client.from("challenge_responses").upsert({
+      couple_id: scope.coupleId,
+      challenge_on: tehranDateDaysAgo(0),
+      challenge_key: challengeKey,
+      deck,
+      user_id: scope.userId,
+      state: challengeState,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "couple_id,challenge_on,challenge_key,user_id" }).select("id").single();
+    throwIfError(result.error, "چالش");
+    await load();
+    if (result.data?.id) void sendFunPush("challenge", result.data.id);
+  }, [scope, load]);
+
+  const setAdultFun = useCallback(async (enabled: boolean) => {
+    const client = createSupabaseBrowserClient();
+    if (!client) throw new Error("اتصال امن نامی به سرور تنظیم نشده.");
+    if (enabled && !stateRef.current.intimacy.adultConfirmed) {
+      const profile = await client.from("profiles").update({ adult_confirmed_at: new Date().toISOString() }).eq("id", scope.userId);
+      throwIfError(profile.error, "تأیید سن");
+    }
+    const result = await client.from("fun_preferences").upsert({ user_id: scope.userId, adult_deck_enabled: enabled, updated_at: new Date().toISOString() });
+    throwIfError(result.error, "تنظیمات بازی");
+    await load();
+  }, [scope.userId, load]);
+
+  return { state, update, updateProfile, answerDaily, reactToDaily, sendPoke, markPokesSeen, setChallengeState, setAdultFun, ready, error, reload: load };
 }

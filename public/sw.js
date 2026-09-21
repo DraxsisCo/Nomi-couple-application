@@ -1,4 +1,4 @@
-const CACHE = "nami-shell-v2";
+const CACHE = "nami-shell-v3";
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -29,5 +29,10 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  event.waitUntil(clients.openWindow(event.notification.data?.url || "/"));
+  const target = event.notification.data?.url || "/";
+  event.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+    const existing = windows.find((client) => new URL(client.url).origin === self.location.origin);
+    if (existing) { existing.navigate(target); return existing.focus(); }
+    return clients.openWindow(target);
+  }));
 });

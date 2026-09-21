@@ -47,6 +47,44 @@ export type MemoryItem = {
   replyAuthorName?: string;
 };
 
+export type DailyAnswer = {
+  id: string;
+  userId: string;
+  answer: string;
+  reaction: string | null;
+  createdAt: string;
+};
+
+export type PokeKind = "hug" | "kiss" | "miss_you" | "thinking_of_you" | "date_tonight";
+
+export type CouplePoke = {
+  id: string;
+  senderId: string;
+  kind: PokeKind;
+  message: string;
+  seenAt: string | null;
+  createdAt: string;
+};
+
+export type ChallengeDeck = "general" | "adult";
+export type ChallengeState = "accepted" | "completed" | "skipped";
+
+export type ChallengeResponse = {
+  id: string;
+  userId: string;
+  challengeKey: string;
+  deck: ChallengeDeck;
+  state: ChallengeState;
+  updatedAt: string;
+};
+
+export type FunPreferences = {
+  viewerAdultEnabled: boolean;
+  partnerAdultEnabled: boolean;
+  bothAdultsConfirmed: boolean;
+  adultDeckUnlocked: boolean;
+};
+
 export const MOODS = [
   { emoji: "😊", label: "خوشحال" },
   { emoji: "🥰", label: "عاشق" },
