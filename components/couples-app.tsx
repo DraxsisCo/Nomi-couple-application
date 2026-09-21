@@ -12,6 +12,7 @@ import DatePicker, { DateObject } from "react-multi-date-picker";
 import { useRouter } from "next/navigation";
 import gregorian from "react-date-object/calendars/gregorian";
 import persian from "react-date-object/calendars/persian";
+import gregorianEn from "react-date-object/locales/gregorian_en";
 import persianFa from "react-date-object/locales/persian_fa";
 import { createDefaultCycle, createDefaultIntimacy, ProductionScope, useNamiState } from "@/lib/use-nami-state";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -38,6 +39,11 @@ function localIsoDate(date: Date) {
 
 function jalaliPickerValue(isoDate: string) {
   return new DateObject({ date: isoDate, format: "YYYY-MM-DD", calendar: gregorian }).convert(persian, persianFa);
+}
+
+function selectedIsoDate(value: DateObject | DateObject[] | null) {
+  if (!(value instanceof DateObject) || !value.isValid) return null;
+  return new DateObject(value).convert(gregorian, gregorianEn).format("YYYY-MM-DD");
 }
 
 function parseLocalDate(value: string) {
@@ -360,9 +366,7 @@ function SettingsView({ viewerName, partnerName, viewerAvatarUrl, relationshipSt
       <Setting icon={BellRing} title="اعلان‌های نامی" subtitle="اعلان‌های مرورگر هنگام باز بودن نامی" action={<Switch checked={notifications} onChange={onNotifications} slotProps={{ input: { "aria-label": "تغییر اعلان‌ها" } }} />} />
       <Setting icon={Moon} title="ساعت آرامش" subtitle="از ۲۳ شب تا ۸ صبح" action={<Switch checked={quietHours} onChange={onQuiet} slotProps={{ input: { "aria-label": "تغییر ساعت آرامش" } }} />} />
       <button className="setting-row" onClick={onRelationship}><span className="setting-icon"><Heart size={20} /></span><div><strong>شروع قصه‌مون</strong><p>{relationshipDate}</p></div><ChevronLeft size={20} /></button>
-      <Setting icon={Clock3} title="زمان و تاریخ" subtitle="تقویم شمسی · تهران (+۰۳:۳۰)" action={<span />} />
       <button className="setting-row" onClick={onSpace}><span className="setting-icon"><UsersRound size={20} /></span><div><strong>فضای دونفره</strong><p>{viewerName} و {partnerName} · اتصال فعال</p></div><ChevronLeft size={20} /></button>
-      <Setting icon={ShieldCheck} title="حریم خصوصی" subtitle="داده‌ها فقط برای اعضای همین زوج قابل مشاهده‌اند" action={<span />} />
       <button className="setting-row" onClick={onReset}><span className="setting-icon" style={{ color: "#b65059", background: "var(--rose-soft)" }}><LogOut size={20} /></span><div><strong>خروج از حساب</strong><p>بازگشت به صفحه‌ی ورود</p></div><ChevronLeft size={20} /></button>
     </div>
     <p className="muted" style={{ textAlign: "center", fontSize: 11, marginTop: 24 }}>نامی نسخه ۰.۱ · ساخته شده برای شما دوتا 🤍</p>
@@ -402,7 +406,7 @@ function EventSheet({ onClose, onSave }: { onClose: () => void; onSave: (e: Even
       startsAt: tehranIsoDateTime(eventDate, eventTime),
     });
   };
-  return <Sheet onClose={onClose}><p className="eyebrow">یه تایم خوب برای دوتاتون</p><h2>پلن تازه ✨</h2><form onSubmit={submit}><div className="field"><label>اسم پلن</label><input className="input" name="title" required placeholder="مثلاً شام دونفره" /></div><div className="field"><label>تاریخ شمسی</label><DatePicker value={jalaliPickerValue(eventDate)} onChange={(value) => { if (value instanceof DateObject) setEventDate(value.convert(gregorian).format("YYYY-MM-DD")); }} calendar={persian} locale={persianFa} format="YYYY/MM/DD" calendarPosition="bottom-right" inputClass="input jalali-input" containerClassName="datepicker-container" portal zIndex={1600} editable={false} /></div><div className="field"><label>ساعت <span className="timezone-label">به وقت تهران (+۰۳:۳۰)</span></label><input className="input time-input" value={eventTime} onChange={(event) => setEventTime(event.target.value)} type="time" /></div><div className="field"><label>کی یادت بندازم؟</label><select className="input" name="reminder"><option>یک روز قبل</option><option>یک هفته قبل</option><option>یک ماه قبل</option><option>همان موقع</option></select></div><div className="timezone-note"><Clock3 size={15} /> همه‌ی ساعت‌ها با منطقه‌ی زمانی تهران ذخیره می‌شن.</div><button className="primary-button" type="submit">بذار توی تقویممون</button></form></Sheet>;
+  return <Sheet onClose={onClose}><p className="eyebrow">یه تایم خوب برای دوتاتون</p><h2>پلن تازه ✨</h2><form onSubmit={submit}><div className="field"><label>اسم پلن</label><input className="input" name="title" required placeholder="مثلاً شام دونفره" /></div><div className="field"><label>تاریخ شمسی</label><DatePicker value={jalaliPickerValue(eventDate)} onChange={(value) => { const nextDate = selectedIsoDate(value); if (nextDate) setEventDate(nextDate); }} calendar={persian} locale={persianFa} format="YYYY/MM/DD" calendarPosition="bottom-right" inputClass="input jalali-input" containerClassName="datepicker-container" portal zIndex={1600} editable={false} /></div><div className="field"><label>ساعت <span className="timezone-label">به وقت تهران (+۰۳:۳۰)</span></label><input className="input time-input" value={eventTime} onChange={(event) => setEventTime(event.target.value)} type="time" /></div><div className="field"><label>کی یادت بندازم؟</label><select className="input" name="reminder"><option>یک روز قبل</option><option>یک هفته قبل</option><option>یک ماه قبل</option><option>همان موقع</option></select></div><div className="timezone-note"><Clock3 size={15} /> همه‌ی ساعت‌ها با منطقه‌ی زمانی تهران ذخیره می‌شن.</div><button className="primary-button" type="submit">بذار توی تقویممون</button></form></Sheet>;
 }
 
 function CycleSheet({ cycle, partnerName, onClose, onSave }: { cycle: CycleState; partnerName: string; onClose: () => void; onSave: (cycle: CycleState) => void }) {
@@ -423,7 +427,7 @@ function CycleSheet({ cycle, partnerName, onClose, onSave }: { cycle: CycleState
     });
   };
   return <Sheet onClose={onClose}><p className="eyebrow">بدن من، انتخاب من</p><h2>ثبت وضعیت چرخه</h2><form onSubmit={submit}>
-    <div className="field"><label>شروع آخرین پریود <span className="timezone-label">تقویم شمسی</span></label><DatePicker value={jalaliPickerValue(periodStart)} onChange={(value) => { if (value instanceof DateObject) setPeriodStart(value.convert(gregorian).format("YYYY-MM-DD")); }} maxDate={tehranToday()} calendar={persian} locale={persianFa} format="YYYY/MM/DD" calendarPosition="bottom-right" inputClass="input jalali-input" containerClassName="datepicker-container" portal zIndex={1600} editable={false} /></div>
+    <div className="field"><label>شروع آخرین پریود <span className="timezone-label">تقویم شمسی</span></label><DatePicker value={jalaliPickerValue(periodStart)} onChange={(value) => { const nextDate = selectedIsoDate(value); if (nextDate) setPeriodStart(nextDate); }} maxDate={tehranToday()} calendar={persian} locale={persianFa} format="YYYY/MM/DD" calendarPosition="bottom-right" inputClass="input jalali-input" containerClassName="datepicker-container" portal zIndex={1600} editable={false} /></div>
     <div className="form-columns"><div className="field"><label>طول چرخه</label><div className="number-field"><input className="input" type="number" name="cycleLength" defaultValue={cycle.cycleLength} min="20" max="45" required /><span>روز</span></div></div><div className="field"><label>طول پریود</label><div className="number-field"><input className="input" type="number" name="periodLength" defaultValue={cycle.periodLength} min="2" max="10" required /><span>روز</span></div></div></div>
     <div className="field"><label>امروز چه حسی داری؟</label><div className="symptom-picker">{symptoms.map((symptom) => <button type="button" key={symptom} className={selectedSymptoms.includes(symptom) ? "selected" : ""} onClick={() => toggleSymptom(symptom)}>{symptom}</button>)}</div></div>
     <div className="field"><label>یادداشت اختیاری</label><textarea className="input compact-textarea" name="note" defaultValue={cycle.note} placeholder="مثلاً امروز کمی استراحت بیشتر لازم داشتم..." /></div>
@@ -496,7 +500,7 @@ function ProfileSheet({ name, avatarUrl, onClose, onSave }: { name: string; avat
 
 function RelationshipSheet({ value, onClose, onSave }: { value: string; onClose: () => void; onSave: (date: string) => void }) {
   const [date, setDate] = useState(value);
-  return <Sheet onClose={onClose}><p className="eyebrow">شروع قصه‌ی شما</p><h2>از کی «ما» شدین؟</h2><div className="field"><label>تاریخ شروع <span className="timezone-label">تقویم شمسی</span></label><DatePicker value={jalaliPickerValue(date)} onChange={(next) => { if (next instanceof DateObject) setDate(next.convert(gregorian).format("YYYY-MM-DD")); }} maxDate={tehranToday()} calendar={persian} locale={persianFa} format="YYYY/MM/DD" calendarPosition="bottom-right" inputClass="input jalali-input" containerClassName="datepicker-container" portal zIndex={1600} editable={false} /></div><button className="primary-button" onClick={() => onSave(date)}>ذخیره تاریخ</button></Sheet>;
+  return <Sheet onClose={onClose}><p className="eyebrow">شروع قصه‌ی شما</p><h2>از کی «ما» شدین؟</h2><div className="field"><label>تاریخ شروع <span className="timezone-label">تقویم شمسی</span></label><DatePicker value={jalaliPickerValue(date)} onChange={(value) => { const nextDate = selectedIsoDate(value); if (nextDate) setDate(nextDate); }} maxDate={tehranToday()} calendar={persian} locale={persianFa} format="YYYY/MM/DD" calendarPosition="bottom-right" inputClass="input jalali-input" containerClassName="datepicker-container" portal zIndex={1600} editable={false} /></div><button className="primary-button" onClick={() => onSave(date)}>ذخیره تاریخ</button></Sheet>;
 }
 
 function InviteSheet({ viewerName, partnerName, onClose }: { viewerName: string; partnerName: string; onClose: () => void }) {
