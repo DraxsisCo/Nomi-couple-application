@@ -1,7 +1,6 @@
 "use client";
 
 import { CssBaseline, ThemeProvider, createTheme } from "@mui/material";
-import { useEffect } from "react";
 
 const theme = createTheme({
   direction: "rtl",
@@ -29,25 +28,6 @@ const theme = createTheme({
   },
 });
 
-function BrowserActionGuard() {
-  useEffect(() => {
-    const isEditable = (target: EventTarget | null) => target instanceof HTMLElement && Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
-    const stopContextMenu = (event: MouseEvent) => { if (!isEditable(event.target)) event.preventDefault(); };
-    const stopDrag = (event: DragEvent) => event.preventDefault();
-    const stopGesture = (event: Event) => { if (!isEditable(event.target)) event.preventDefault(); };
-
-    document.addEventListener("contextmenu", stopContextMenu);
-    document.addEventListener("dragstart", stopDrag);
-    document.addEventListener("gesturestart", stopGesture, { passive: false });
-    return () => {
-      document.removeEventListener("contextmenu", stopContextMenu);
-      document.removeEventListener("dragstart", stopDrag);
-      document.removeEventListener("gesturestart", stopGesture);
-    };
-  }, []);
-  return null;
-}
-
 export function AppProviders({ children }: { children: React.ReactNode }) {
-  return <ThemeProvider theme={theme}><CssBaseline /><BrowserActionGuard />{children}</ThemeProvider>;
+  return <ThemeProvider theme={theme}><CssBaseline />{children}</ThemeProvider>;
 }

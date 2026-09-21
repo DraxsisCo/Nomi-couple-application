@@ -1,4 +1,28 @@
-export type Tab = "home" | "calendar" | "cycle" | "diary" | "settings";
+export type Tab = "home" | "us" | "plans" | "memories" | "profile" | "cycle";
+
+export type ActivityType = "status" | "poke" | "daily" | "challenge" | "event" | "memory";
+
+export type ActivityReaction = {
+  userId: string;
+  reaction: string;
+};
+
+export type ActivityReply = {
+  id: string;
+  authorId: string;
+  body: string;
+  updatedAt: string;
+};
+
+export type ActivityItem = {
+  id: string;
+  actorId: string;
+  type: ActivityType;
+  payload: Record<string, string | boolean | null>;
+  createdAt: string;
+  reactions: ActivityReaction[];
+  replies: ActivityReply[];
+};
 
 export type MoodState = {
   emoji: string;
@@ -26,6 +50,7 @@ export type IntimacyState = {
 
 export type EventItem = {
   id: string;
+  createdBy?: string;
   title: string;
   day: number;
   month: string;
@@ -83,6 +108,9 @@ export type FunPreferences = {
   partnerAdultEnabled: boolean;
   bothAdultsConfirmed: boolean;
   adultDeckUnlocked: boolean;
+  viewerIntimacyEnabled: boolean;
+  partnerIntimacyEnabled: boolean;
+  intimacyUnlocked: boolean;
 };
 
 export const MOODS = [

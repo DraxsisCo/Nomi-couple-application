@@ -1,7 +1,7 @@
 "use client";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { Heart, LockKeyhole, Mail, UserRound } from "lucide-react";
+import { Eye, EyeOff, Heart, LockKeyhole, Mail, UserRound } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -11,6 +11,7 @@ export function AuthScreen() {
   const [mode, setMode] = useState<Mode>("login");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -46,9 +47,9 @@ export function AuthScreen() {
     <form onSubmit={submit} className="auth-form">
       {mode === "signup" && <label className="auth-field"><span><UserRound size={17} /> اسمت</span><input className="input" name="name" autoComplete="name" required placeholder="دوست داری چی صدات کنیم؟" /></label>}
       <label className="auth-field"><span><Mail size={17} /> ایمیل</span><input className="input" name="email" type="email" inputMode="email" autoComplete="email" required placeholder="you@example.com" dir="ltr" /></label>
-      {mode !== "reset" && <label className="auth-field"><span><LockKeyhole size={17} /> رمز عبور</span><input className="input" name="password" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={8} required placeholder="حداقل ۸ کاراکتر" dir="ltr" /></label>}
+      {mode !== "reset" && <label className="auth-field"><span><LockKeyhole size={17} /> رمز عبور</span><span className="password-field"><input className="input" name="password" type={showPassword ? "text" : "password"} autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={8} required placeholder="حداقل ۸ کاراکتر" dir="ltr" /><button type="button" aria-label={showPassword ? "پنهان کردن رمز" : "نمایش رمز"} onClick={() => setShowPassword((value) => !value)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></span>{mode === "signup" && <small className="field-hint">حداقل ۸ کاراکتر؛ بهتره از یک رمز منحصربه‌فرد استفاده کنی.</small>}</label>}
       {message && <div className="auth-message" role="status">{message}</div>}
-      <button className="primary-button" disabled={busy}>{busy ? "یه لحظه..." : mode === "login" ? "ورود" : mode === "signup" ? "ساخت حساب" : "فرستادن لینک"}</button>
+      <button className="primary-button" disabled={busy} aria-busy={busy}>{busy ? "یه لحظه..." : mode === "login" ? "ورود" : mode === "signup" ? "ساخت حساب" : "فرستادن لینک"}</button>
     </form>
     <div className="auth-actions">{mode === "login" ? <><button onClick={() => setMode("signup")}>هنوز حساب ندارم</button><button onClick={() => setMode("reset")}>رمزم یادم نیست</button></> : <button onClick={() => setMode("login")}>حساب دارم؛ برگرد به ورود</button>}</div>
   </section></main>;

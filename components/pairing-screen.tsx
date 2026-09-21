@@ -1,7 +1,7 @@
 "use client";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { Copy, Heart, Link2, LogOut, UsersRound } from "lucide-react";
+import { Copy, Heart, Link2, LogOut, Share2, UsersRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
@@ -26,26 +26,30 @@ export function PairingScreen({ name }: { name: string }) {
 
   const createInvite = async () => {
     if (!client) return; setBusy(true); setMessage("");
-    const token = `NAMI-${crypto.randomUUID().replaceAll("-", "").slice(0, 8).toUpperCase()}`;
-    const { data, error } = await client.rpc("create_couple_invite", { raw_token: token });
-    if (error) setMessage(error.message); else { setCode(data?.[0]?.invite_code || token); setMode("create"); }
+    const { data, error } = await client.rpc("create_couple_invite", { relationship_date: null });
+    if (error) setMessage(error.message); else { setCode(data?.[0]?.invite_code || ""); setMode("create"); }
     setBusy(false);
   };
   const join = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); if (!client) return; setBusy(true); setMessage("");
     const { error } = await client.rpc("accept_couple_invite", { raw_token: code.trim().toUpperCase() });
-    if (error) setMessage(error.message.includes("invalid_or_expired") ? "این کد اشتباهه یا وقتش تموم شده." : error.message);
+    if (error) setMessage(error.message.includes("invite_rate_limited") ? "تلاش‌ها زیاد شد؛ ۱۵ دقیقه دیگه دوباره امتحان کن." : error.message.includes("invalid_or_expired") ? "این کد اشتباهه یا وقتش تموم شده." : error.message);
     else { router.refresh(); }
     setBusy(false);
   };
   const logout = async () => { await client?.auth.signOut(); router.push("/login"); router.refresh(); };
+  const shareInvite = async () => {
+    const text = `با این کد به فضای دونفره‌مون در نامی وصل شو: ${code}`;
+    if (navigator.share) await navigator.share({ title: "دعوت به نامی", text }).catch(() => undefined);
+    else { await navigator.clipboard.writeText(text); setMessage("متن دعوت کپی شد."); }
+  };
 
   return <main className="pairing-page"><section className="pairing-card">
     <div className="pairing-top"><div className="brand"><span className="brand-mark"><Heart size={21} fill="currentColor" /></span> نامی</div><button className="icon-button" aria-label="خروج" onClick={logout}><LogOut size={18} /></button></div>
     <div className="pairing-art"><UsersRound size={42} /></div><p className="eyebrow">سلام {name} 🫶</p><h1>آدمِت رو بیار توی نامی</h1><p className="muted">فضای دوتایی‌تون وقتی ساخته می‌شه که یکی دعوت کنه و اون یکی با کد وصل بشه.</p>
     {mode === "choose" && <div className="pairing-actions"><button className="primary-button" disabled={busy} onClick={createInvite}><Link2 size={18} /> {busy ? "دارم می‌سازم..." : "یه کد دعوت بساز"}</button><button className="secondary-button" onClick={() => setMode("join")}>کد دعوت دارم</button></div>}
-    {mode === "create" && <div className="invite-result"><span>این کد رو فقط برای آدمِت بفرست</span><strong dir="ltr">{code}</strong><button className="primary-button" onClick={() => navigator.clipboard.writeText(code)}><Copy size={17} /> کپی کد</button><small>کد ۲۴ ساعت اعتبار داره. وقتی وصل شد، این صفحه خودکار کنار می‌ره.</small></div>}
-    {mode === "join" && <form onSubmit={join} className="join-form"><label>کد دعوت</label><input className="input code-input" value={code} onChange={(event) => setCode(event.target.value)} placeholder="NAMI-XXXXXXXX" dir="ltr" autoCapitalize="characters" required /><button className="primary-button" disabled={busy}>{busy ? "دارم وصل می‌کنم..." : "وصل شو به آدمِت 💜"}</button><button type="button" className="text-button" onClick={() => setMode("choose")}>برگرد</button></form>}
+    {mode === "create" && <div className="invite-result"><span>این کد رو فقط برای آدمِت بفرست</span><strong dir="ltr">{code}</strong><div className="button-row"><button className="primary-button" onClick={() => { void navigator.clipboard.writeText(code); setMessage("کد دعوت کپی شد."); }}><Copy size={17} /> کپی کد</button><button className="secondary-button share-button" onClick={() => void shareInvite()}><Share2 size={17} /> اشتراک</button></div><small>کد ۲۴ ساعت اعتبار داره. وقتی وصل شد، این صفحه خودکار کنار می‌ره.</small></div>}
+    {mode === "join" && <form onSubmit={join} className="join-form"><label>کد دعوت</label><input className="input code-input" value={code} onChange={(event) => setCode(event.target.value.replace(/[^23456789A-HJ-NP-Z]/gi, "").toUpperCase().slice(0, 12))} placeholder="۱۲ کاراکتر" dir="ltr" autoCapitalize="characters" minLength={12} maxLength={12} required /><button className="primary-button" disabled={busy}>{busy ? "دارم وصل می‌کنم..." : "وصل شو به آدمِت 💜"}</button><button type="button" className="text-button" onClick={() => setMode("choose")}>برگرد</button></form>}
     {message && <div className="auth-message" role="alert">{message}</div>}
   </section></main>;
 }

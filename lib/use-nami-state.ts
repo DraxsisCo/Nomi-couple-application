@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChallengeDeck, ChallengeResponse, ChallengeState, CouplePoke, CycleState, DailyAnswer, EventItem, FunPreferences, IntimacyState, MemoryItem, MoodState, PokeKind } from "./types";
+import { ActivityItem, ActivityType, ChallengeDeck, ChallengeResponse, ChallengeState, CouplePoke, CycleState, DailyAnswer, EventItem, FunPreferences, IntimacyState, MemoryItem, MoodState, PokeKind } from "./types";
 import { createSupabaseBrowserClient } from "./supabase/client";
 import { sendFunPush } from "./push";
+import { readSafeSnapshot, saveSafeSnapshot } from "./offline-snapshot";
 
 export type ProductionScope = {
   userId: string;
@@ -38,6 +39,7 @@ export type NamiState = {
   pokes: CouplePoke[];
   challengeResponses: ChallengeResponse[];
   funPreferences: FunPreferences;
+  activities: ActivityItem[];
 };
 
 type SupabaseError = { message: string; code?: string; hint?: string | null; details?: string | null };
@@ -81,7 +83,8 @@ function initialState(scope: ProductionScope): NamiState {
     dailyAnswers: [],
     pokes: [],
     challengeResponses: [],
-    funPreferences: { viewerAdultEnabled: false, partnerAdultEnabled: false, bothAdultsConfirmed: false, adultDeckUnlocked: false },
+    funPreferences: { viewerAdultEnabled: false, partnerAdultEnabled: false, bothAdultsConfirmed: false, adultDeckUnlocked: false, viewerIntimacyEnabled: false, partnerIntimacyEnabled: false, intimacyUnlocked: false },
+    activities: [],
   };
 }
 
@@ -103,11 +106,17 @@ function eventFromRow(row: Record<string, unknown>): EventItem {
   const day = Number(rawDay.replace(/[۰-۹]/g, (digit) => String(faDigits.indexOf(digit))));
   const time = new Intl.DateTimeFormat("fa-IR", { timeZone: "Asia/Tehran", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
   const offsets = Array.isArray(row.reminder_offsets) ? row.reminder_offsets as number[] : [];
-  return { id: String(row.id), title: String(row.title), day, month: parts.find((part) => part.type === "month")?.value || "", time: row.all_day ? "تمام روز" : time, daysLeft: Math.max(0, Math.ceil((date.getTime() - Date.now()) / 86400000)), reminder: reminderLabels.get(offsets[0] ?? 1440) ?? "یک روز قبل", startsAt: date.toISOString() };
+  return { id: String(row.id), createdBy: row.created_by ? String(row.created_by) : undefined, title: String(row.title), day, month: parts.find((part) => part.type === "month")?.value || "", time: row.all_day ? "تمام روز" : time, daysLeft: Math.max(0, Math.ceil((date.getTime() - Date.now()) / 86400000)), reminder: reminderLabels.get(offsets[0] ?? 1440) ?? "یک روز قبل", startsAt: date.toISOString() };
 }
 
 function signalFromRow(row: Record<string, unknown>, adultConfirmed: boolean): IntimacyState {
   return { adultConfirmed, signal: String(row.signal), emoji: String(row.emoji), message: String(row.message ?? ""), sentAt: String(row.created_at), expiresAt: String(row.expires_at), senderId: String(row.sender_id) };
+}
+
+function activityFromRow(row: Record<string, unknown>): ActivityItem {
+  const reactions = Array.isArray(row.activity_reactions) ? row.activity_reactions as Record<string, unknown>[] : [];
+  const replies = Array.isArray(row.activity_replies) ? row.activity_replies as Record<string, unknown>[] : [];
+  return { id: String(row.id), actorId: String(row.actor_id), type: row.activity_type as ActivityType, payload: (row.payload ?? {}) as Record<string, string | boolean | null>, createdAt: String(row.created_at), reactions: reactions.map((reaction) => ({ userId: String(reaction.user_id), reaction: String(reaction.reaction) })), replies: replies.map((reply) => ({ id: String(reply.id), authorId: String(reply.author_id), body: String(reply.body), updatedAt: String(reply.updated_at) })) };
 }
 
 function throwIfError(error: SupabaseError | null, operation: string) {
@@ -120,17 +129,23 @@ export function useNamiState(scope: ProductionScope) {
   const [state, setState] = useState<NamiState>(() => initialState(scope));
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [connection, setConnection] = useState<"loading" | "online" | "reconnecting" | "offline" | "stale" | "error">("loading");
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [hasMoreActivities, setHasMoreActivities] = useState(false);
   const stateRef = useRef(state);
+  const loadSequence = useRef(0);
   useEffect(() => { stateRef.current = state; }, [state]);
 
   const load = useCallback(async () => {
+    const sequence = ++loadSequence.current;
     const client = createSupabaseBrowserClient();
-    if (!client) { setError("اتصال امن نامی به سرور تنظیم نشده."); setReady(true); return; }
+    if (!client) { setError("اتصال امن نامی به سرور تنظیم نشده."); setConnection("error"); setReady(true); return; }
     try {
       const today = tehranDateDaysAgo(0);
-      const [statuses, events, entries, settings, log, prefs, signals, profiles, couple, dailyAnswers, pokes, challengeResponses, funPreferences] = await Promise.all([
+      setConnection((current) => current === "loading" ? "loading" : "reconnecting");
+      const [statuses, events, entries, settings, log, prefs, signals, profiles, couple, dailyAnswers, pokes, challengeResponses, funPreferences, consents, activities] = await Promise.all([
         client.from("statuses").select("*").eq("couple_id", scope.coupleId),
-        client.from("events").select("*").eq("couple_id", scope.coupleId).gte("starts_at", new Date().toISOString()).order("starts_at"),
+        client.from("events").select("*").eq("couple_id", scope.coupleId).order("starts_at"),
         client.from("diary_entries").select("*, diary_replies(body, author_id, created_at)").eq("couple_id", scope.coupleId).order("happened_on", { ascending: false }).order("created_at", { ascending: false }),
         client.from("cycle_settings").select("*").eq("user_id", scope.userId).maybeSingle(),
         client.from("cycle_logs").select("*").eq("user_id", scope.userId).order("logged_on", { ascending: false }).limit(1).maybeSingle(),
@@ -142,8 +157,11 @@ export function useNamiState(scope: ProductionScope) {
         client.from("couple_pokes").select("id, sender_id, kind, message, seen_at, created_at").eq("couple_id", scope.coupleId).gte("created_at", new Date(Date.now() - 86400000).toISOString()).order("created_at", { ascending: false }).limit(20),
         client.from("challenge_responses").select("id, user_id, challenge_key, deck, state, updated_at").eq("couple_id", scope.coupleId).eq("challenge_on", today),
         client.from("fun_preferences").select("user_id, adult_deck_enabled").in("user_id", [scope.userId, scope.partnerId]),
+        client.from("feature_consents").select("user_id, feature, accepted_at, revoked_at").in("user_id", [scope.userId, scope.partnerId]),
+        client.from("activity_items").select("id, actor_id, activity_type, payload, created_at, activity_reactions(user_id,reaction), activity_replies(id,author_id,body,updated_at)").eq("couple_id", scope.coupleId).order("created_at", { ascending: false }).order("id", { ascending: false }).limit(30),
       ]);
-      const failed = [statuses, events, entries, settings, log, prefs, signals, profiles, couple, dailyAnswers, pokes, challengeResponses, funPreferences].find((result) => result.error);
+      if (sequence !== loadSequence.current) return;
+      const failed = [statuses, events, entries, settings, log, prefs, signals, profiles, couple, dailyAnswers, pokes, challengeResponses, funPreferences, consents, activities].find((result) => result.error);
       throwIfError(failed?.error as SupabaseError | null, "اطلاعات");
       const own = statuses.data?.find((item) => item.user_id === scope.userId);
       const partner = statuses.data?.find((item) => item.user_id !== scope.userId);
@@ -158,10 +176,13 @@ export function useNamiState(scope: ProductionScope) {
         signedAvatarUrl(client, viewerProfile?.avatar_path),
         signedAvatarUrl(client, partnerProfile?.avatar_path),
       ]);
-      const adultConfirmed = Boolean(viewerProfile?.adult_confirmed_at);
-      const bothAdultsConfirmed = Boolean(viewerProfile?.adult_confirmed_at && partnerProfile?.adult_confirmed_at);
-      const viewerAdultEnabled = Boolean(funPreferences.data?.find((item) => item.user_id === scope.userId)?.adult_deck_enabled);
-      const partnerAdultEnabled = Boolean(funPreferences.data?.find((item) => item.user_id === scope.partnerId)?.adult_deck_enabled);
+      const consented = (userId: string, feature: string) => Boolean(consents.data?.find((item) => item.user_id === userId && item.feature === feature && item.accepted_at && !item.revoked_at));
+      const adultConfirmed = consented(scope.userId, "adult_confirmed");
+      const bothAdultsConfirmed = adultConfirmed && consented(scope.partnerId, "adult_confirmed");
+      const viewerAdultEnabled = consented(scope.userId, "adult_challenges");
+      const partnerAdultEnabled = consented(scope.partnerId, "adult_challenges");
+      const viewerIntimacyEnabled = consented(scope.userId, "intimacy");
+      const partnerIntimacyEnabled = consented(scope.partnerId, "intimacy");
       const ownSignal = signals.data?.find((item) => item.sender_id === scope.userId);
       const partnerSignal = signals.data?.find((item) => item.sender_id !== scope.userId);
       setState((current) => ({
@@ -193,12 +214,28 @@ export function useNamiState(scope: ProductionScope) {
         dailyAnswers: dailyAnswers.data?.map((row) => ({ id: row.id, userId: row.user_id, answer: row.answer, reaction: row.reaction, createdAt: row.created_at })) ?? [],
         pokes: pokes.data?.map((row) => ({ id: row.id, senderId: row.sender_id, kind: row.kind as PokeKind, message: row.message, seenAt: row.seen_at, createdAt: row.created_at })) ?? [],
         challengeResponses: challengeResponses.data?.map((row) => ({ id: row.id, userId: row.user_id, challengeKey: row.challenge_key, deck: row.deck as ChallengeDeck, state: row.state as ChallengeState, updatedAt: row.updated_at })) ?? [],
-        funPreferences: { viewerAdultEnabled, partnerAdultEnabled, bothAdultsConfirmed, adultDeckUnlocked: viewerAdultEnabled && partnerAdultEnabled && bothAdultsConfirmed },
+        funPreferences: { viewerAdultEnabled, partnerAdultEnabled, bothAdultsConfirmed, adultDeckUnlocked: viewerAdultEnabled && partnerAdultEnabled && bothAdultsConfirmed, viewerIntimacyEnabled, partnerIntimacyEnabled, intimacyUnlocked: viewerIntimacyEnabled && partnerIntimacyEnabled && bothAdultsConfirmed },
+        activities: activities.data?.map((row) => activityFromRow(row as Record<string, unknown>)) ?? [],
       }));
+      setHasMoreActivities((activities.data?.length ?? 0) === 30);
+      const syncedAt = new Date().toISOString();
+      setLastSyncedAt(syncedAt);
+      setConnection("online");
+      const safeActivities: ActivityItem[] = activities.data?.slice(0, 10).map((row) => ({ id: String(row.id), actorId: String(row.actor_id), type: row.activity_type as ActivityType, payload: (row.payload ?? {}) as Record<string, string | boolean | null>, createdAt: String(row.created_at), reactions: [], replies: [] })) ?? [];
+      void saveSafeSnapshot({ coupleId: scope.coupleId, partnerName, partnerMood: partner ? { emoji: partner.mood_emoji, label: partner.mood } : null, partnerActivity: partner?.activity ?? null, relationshipStartedOn: couple.data?.relationship_started_on ?? String(couple.data?.created_at ?? scope.relationshipStartedOn).slice(0, 10), events: events.data?.map((row) => eventFromRow(row as Record<string, unknown>)) ?? [], activities: safeActivities, savedAt: syncedAt }).catch(() => undefined);
       setError(null);
     } catch (loadError) {
       console.error("[Nami] load", loadError);
-      setError(loadError instanceof Error ? loadError.message : "اطلاعات از سرور دریافت نشد.");
+      const snapshot = await readSafeSnapshot(scope.coupleId).catch(() => null);
+      if (snapshot) {
+        setState((current) => ({ ...current, partnerName: snapshot.partnerName, partnerMood: snapshot.partnerMood, partnerActivity: snapshot.partnerActivity, relationshipStartedOn: snapshot.relationshipStartedOn, events: snapshot.events, activities: snapshot.activities ?? [] }));
+        setLastSyncedAt(snapshot.savedAt);
+        setConnection("stale");
+        setError(null);
+      } else {
+        setConnection(typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "error");
+        setError(loadError instanceof Error ? loadError.message : "اطلاعات از سرور دریافت نشد.");
+      }
     } finally { setReady(true); }
   }, [scope]);
 
@@ -222,6 +259,9 @@ export function useNamiState(scope: ProductionScope) {
       .on("postgres_changes", { event: "*", schema: "public", table: "daily_answers", filter: `couple_id=eq.${scope.coupleId}` }, reload)
       .on("postgres_changes", { event: "*", schema: "public", table: "couple_pokes", filter: `couple_id=eq.${scope.coupleId}` }, reload)
       .on("postgres_changes", { event: "*", schema: "public", table: "challenge_responses", filter: `couple_id=eq.${scope.coupleId}` }, reload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "activity_items", filter: `couple_id=eq.${scope.coupleId}` }, reload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "activity_reactions" }, reload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "activity_replies" }, reload)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${scope.userId}` }, reload)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${scope.partnerId}` }, reload)
       .subscribe((status, channelError) => { if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.error("[Nami] realtime", status, channelError); });
@@ -231,7 +271,12 @@ export function useNamiState(scope: ProductionScope) {
       .on("postgres_changes", { event: "*", schema: "public", table: "notification_preferences", filter: `user_id=eq.${scope.userId}` }, reload)
       .on("postgres_changes", { event: "*", schema: "public", table: "fun_preferences", filter: `user_id=eq.${scope.userId}` }, reload)
       .on("postgres_changes", { event: "*", schema: "public", table: "fun_preferences", filter: `user_id=eq.${scope.partnerId}` }, reload)
-      .subscribe((status, channelError) => { if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.error("[Nami] realtime", status, channelError); });
+      .on("postgres_changes", { event: "*", schema: "public", table: "feature_consents", filter: `user_id=eq.${scope.userId}` }, reload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "feature_consents", filter: `user_id=eq.${scope.partnerId}` }, reload)
+      .subscribe((status, channelError) => {
+        if (status === "SUBSCRIBED") setConnection("online");
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") { setConnection("reconnecting"); console.error("[Nami] realtime", status, channelError); }
+      });
     return () => { void client.removeChannel(coupleChannel); void client.removeChannel(privateChannel); };
   }, [scope, load]);
 
@@ -254,13 +299,10 @@ export function useNamiState(scope: ProductionScope) {
         if (added) { const result = await client.from("diary_entries").insert({ id: added.id, couple_id: scope.coupleId, author_id: scope.userId, title: added.title, body: added.body, emoji: added.emoji, happened_on: tehranDateDaysAgo(0) }); throwIfError(result.error, "خاطره"); }
       }
       if (patch.cycle) {
-        const settingsResult = await client.from("cycle_settings").upsert({ user_id: scope.userId, last_period_start: patch.cycle.lastPeriodStart, cycle_length: patch.cycle.cycleLength, period_length: patch.cycle.periodLength, shared_with_partner: patch.cycle.sharedWithPartner, updated_at: new Date().toISOString() });
-        throwIfError(settingsResult.error, "تنظیمات چرخه");
-        const logResult = await client.from("cycle_logs").upsert({ user_id: scope.userId, logged_on: tehranDateDaysAgo(0), symptoms: patch.cycle.symptoms, note: patch.cycle.note, updated_at: new Date().toISOString() }, { onConflict: "user_id,logged_on" });
-        throwIfError(logResult.error, "وضعیت چرخه");
+        const cycleResult = await client.rpc("save_cycle_state", { last_period_start: patch.cycle.lastPeriodStart, cycle_length: patch.cycle.cycleLength, period_length: patch.cycle.periodLength, symptoms: patch.cycle.symptoms, note: patch.cycle.note, shared_with_partner: patch.cycle.sharedWithPartner, logged_on: tehranDateDaysAgo(0) });
+        throwIfError(cycleResult.error, "وضعیت چرخه");
       }
       if (patch.intimacy) {
-        if (patch.intimacy.adultConfirmed && !previous.intimacy.adultConfirmed) { const profileResult = await client.from("profiles").update({ adult_confirmed_at: new Date().toISOString() }).eq("id", scope.userId); throwIfError(profileResult.error, "تأیید سن"); }
         if (patch.intimacy.signal) { const signalResult = await client.from("intimacy_signals").insert({ couple_id: scope.coupleId, sender_id: scope.userId, signal: patch.intimacy.signal, emoji: patch.intimacy.emoji, message: patch.intimacy.message, expires_at: patch.intimacy.expiresAt }); throwIfError(signalResult.error, "سیگنال"); }
         else { const withdrawResult = await client.from("intimacy_signals").update({ withdrawn_at: new Date().toISOString() }).eq("couple_id", scope.coupleId).eq("sender_id", scope.userId).is("withdrawn_at", null); throwIfError(withdrawResult.error, "سیگنال"); }
       }
@@ -373,14 +415,94 @@ export function useNamiState(scope: ProductionScope) {
   const setAdultFun = useCallback(async (enabled: boolean) => {
     const client = createSupabaseBrowserClient();
     if (!client) throw new Error("اتصال امن نامی به سرور تنظیم نشده.");
-    if (enabled && !stateRef.current.intimacy.adultConfirmed) {
-      const profile = await client.from("profiles").update({ adult_confirmed_at: new Date().toISOString() }).eq("id", scope.userId);
-      throwIfError(profile.error, "تأیید سن");
+    const now = new Date().toISOString();
+    if (enabled) {
+      const adult = await client.from("feature_consents").upsert({ user_id: scope.userId, feature: "adult_confirmed", accepted_at: now, revoked_at: null, updated_at: now });
+      throwIfError(adult.error, "تأیید سن");
     }
+    const consent = await client.from("feature_consents").upsert({ user_id: scope.userId, feature: "adult_challenges", accepted_at: enabled ? now : null, revoked_at: enabled ? null : now, updated_at: now });
+    throwIfError(consent.error, "رضایت بازی");
     const result = await client.from("fun_preferences").upsert({ user_id: scope.userId, adult_deck_enabled: enabled, updated_at: new Date().toISOString() });
     throwIfError(result.error, "تنظیمات بازی");
     await load();
   }, [scope.userId, load]);
 
-  return { state, update, updateProfile, answerDaily, reactToDaily, sendPoke, markPokesSeen, setChallengeState, setAdultFun, ready, error, reload: load };
+  const setIntimacyConsent = useCallback(async (enabled: boolean) => {
+    const client = createSupabaseBrowserClient();
+    if (!client) throw new Error("اتصال امن نامی به سرور تنظیم نشده.");
+    const now = new Date().toISOString();
+    if (enabled) {
+      const adult = await client.from("feature_consents").upsert({ user_id: scope.userId, feature: "adult_confirmed", accepted_at: now, revoked_at: null, updated_at: now });
+      throwIfError(adult.error, "تأیید سن");
+    }
+    const consent = await client.from("feature_consents").upsert({ user_id: scope.userId, feature: "intimacy", accepted_at: enabled ? now : null, revoked_at: enabled ? null : now, updated_at: now });
+    throwIfError(consent.error, "رضایت فضای خصوصی");
+    await load();
+  }, [scope.userId, load]);
+
+  const reactToActivity = useCallback(async (activityId: string, reaction: string) => {
+    const client = createSupabaseBrowserClient();
+    if (!client) throw new Error("اتصال امن نامی به سرور تنظیم نشده.");
+    const existing = stateRef.current.activities.find((item) => item.id === activityId)?.reactions.find((item) => item.userId === scope.userId);
+    const result = existing?.reaction === reaction
+      ? await client.from("activity_reactions").delete().eq("activity_id", activityId).eq("user_id", scope.userId)
+      : await client.from("activity_reactions").upsert({ activity_id: activityId, user_id: scope.userId, reaction, updated_at: new Date().toISOString() });
+    throwIfError(result.error, "واکنش");
+    await load();
+  }, [scope.userId, load]);
+
+  const replyToActivity = useCallback(async (activityId: string, body: string) => {
+    const client = createSupabaseBrowserClient();
+    const cleanBody = body.trim();
+    if (!client) throw new Error("اتصال امن نامی به سرور تنظیم نشده.");
+    if (!cleanBody || cleanBody.length > 280) throw new Error("جواب باید بین ۱ تا ۲۸۰ کاراکتر باشه.");
+    const result = await client.from("activity_replies").upsert({ activity_id: activityId, author_id: scope.userId, body: cleanBody, updated_at: new Date().toISOString() }, { onConflict: "activity_id,author_id" });
+    throwIfError(result.error, "جواب");
+    await load();
+  }, [scope.userId, load]);
+
+  const loadOlderActivities = useCallback(async () => {
+    const client = createSupabaseBrowserClient();
+    const last = stateRef.current.activities.at(-1);
+    if (!client || !last) return;
+    const result = await client.from("activity_items").select("id, actor_id, activity_type, payload, created_at, activity_reactions(user_id,reaction), activity_replies(id,author_id,body,updated_at)").eq("couple_id", scope.coupleId).lt("created_at", last.createdAt).order("created_at", { ascending: false }).order("id", { ascending: false }).limit(30);
+    throwIfError(result.error, "ادامه تازه‌ها");
+    const older = result.data?.map((row) => activityFromRow(row as Record<string, unknown>)) ?? [];
+    setState((current) => ({ ...current, activities: [...current.activities, ...older.filter((item) => !current.activities.some((currentItem) => currentItem.id === item.id))] }));
+    setHasMoreActivities(older.length === 30);
+  }, [scope.coupleId]);
+
+  const saveEvent = useCallback(async (event: EventItem) => {
+    const client = createSupabaseBrowserClient();
+    if (!client) throw new Error("اتصال امن نامی به سرور تنظیم نشده.");
+    const result = await client.from("events").update({ title: event.title, starts_at: event.startsAt, reminder_offsets: [reminderMinutes.get(event.reminder) ?? 1440] }).eq("id", event.id).eq("couple_id", scope.coupleId);
+    throwIfError(result.error, "برنامه");
+    await load();
+  }, [scope.coupleId, load]);
+
+  const deleteEvent = useCallback(async (eventId: string) => {
+    const client = createSupabaseBrowserClient();
+    if (!client) throw new Error("اتصال امن نامی به سرور تنظیم نشده.");
+    const result = await client.from("events").delete().eq("id", eventId).eq("couple_id", scope.coupleId);
+    throwIfError(result.error, "برنامه");
+    await load();
+  }, [scope.coupleId, load]);
+
+  const saveMemory = useCallback(async (memory: MemoryItem) => {
+    const client = createSupabaseBrowserClient();
+    if (!client) throw new Error("اتصال امن نامی به سرور تنظیم نشده.");
+    const result = await client.from("diary_entries").update({ title: memory.title, body: memory.body, emoji: memory.emoji, updated_at: new Date().toISOString() }).eq("id", memory.id).eq("author_id", scope.userId);
+    throwIfError(result.error, "خاطره");
+    await load();
+  }, [scope.userId, load]);
+
+  const deleteMemory = useCallback(async (memoryId: string) => {
+    const client = createSupabaseBrowserClient();
+    if (!client) throw new Error("اتصال امن نامی به سرور تنظیم نشده.");
+    const result = await client.from("diary_entries").delete().eq("id", memoryId).eq("author_id", scope.userId);
+    throwIfError(result.error, "خاطره");
+    await load();
+  }, [scope.userId, load]);
+
+  return { state, update, updateProfile, answerDaily, reactToDaily, sendPoke, markPokesSeen, setChallengeState, setAdultFun, setIntimacyConsent, reactToActivity, replyToActivity, loadOlderActivities, saveEvent, deleteEvent, saveMemory, deleteMemory, ready, error, connection, lastSyncedAt, hasMoreActivities, reload: load };
 }
