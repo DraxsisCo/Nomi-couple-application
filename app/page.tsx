@@ -25,5 +25,5 @@ export default async function Home() {
   if (!partner) return <PairingScreen name={viewerName} />;
   const partnerProfile = partner?.profiles as unknown as { display_name?: string } | null;
   const relationshipStartedOn = couple?.relationship_started_on || couple?.created_at?.slice(0, 10) || new Date().toISOString().slice(0, 10);
-  return <CouplesApp production={{ userId: auth.user.id, coupleId: membership.couple_id, viewerName, partnerName: partnerProfile?.display_name || "همراهت", relationshipStartedOn }} />;
+  return <CouplesApp production={{ userId: auth.user.id, partnerId: partner.user_id, coupleId: membership.couple_id, viewerName, partnerName: partnerProfile?.display_name || "همراهت", relationshipStartedOn }} />;
 }

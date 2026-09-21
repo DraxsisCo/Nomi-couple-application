@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  Bell, BellRing, BookHeart, CalendarDays, ChevronLeft, ChevronRight, Clock3, Droplets,
+  Bell, BellRing, BookHeart, CalendarDays, Camera, ChevronLeft, ChevronRight, Clock3, Droplets,
   Flame, Heart, Home, LockKeyhole, LogOut, Moon,
   Plus, Settings, ShieldCheck, Sparkles, UsersRound, Waves,
   WifiOff, X,
@@ -100,10 +100,10 @@ const navItems: { id: Tab; label: string; icon: typeof Home }[] = [
 ];
 
 export function CouplesApp({ production }: { production: ProductionScope }) {
-  const { state, update, ready, error, reload } = useNamiState(production);
+  const { state, update, updateProfile, ready, error, reload } = useNamiState(production);
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("home");
-  const [modal, setModal] = useState<"status" | "event" | "cycle" | "intimacy" | "memory" | "relationship" | "invite" | null>(null);
+  const [modal, setModal] = useState<"status" | "event" | "cycle" | "intimacy" | "memory" | "relationship" | "invite" | "profile" | null>(null);
   const [toast, setToast] = useState<{ message: string; severity: "success" | "error" } | null>(null);
   const [online, setOnline] = useState(true);
   const cycleDraft = state.cycle ?? createDefaultCycle();
@@ -144,17 +144,18 @@ export function CouplesApp({ production }: { production: ProductionScope }) {
       </Snackbar>
       {!online && <div className="toast"><WifiOff size={15} /> اینترنت قطع شده؛ تا وصل شدن دوباره چیزی ذخیره نمی‌شه</div>}
       <div className="page">
-        <Header viewerName={production.viewerName} partnerName={production.partnerName} onInvite={() => setModal("invite")} />
+        <Header viewerName={state.viewerName} partnerName={state.partnerName} viewerAvatarUrl={state.viewerAvatarUrl} partnerAvatarUrl={state.partnerAvatarUrl} onInvite={() => setModal("invite")} />
         {error && <Alert severity="error" action={<button className="text-button" onClick={() => void reload()}>تلاش دوباره</button>} sx={{ mb: 2 }}>{error}</Alert>}
         <div className="view-enter" key={tab}>
-        {tab === "home" && <HomeView state={state} intimacy={intimacy} partnerIntimacy={state.partnerIntimacy} viewerName={production.viewerName} partnerName={production.partnerName} openStatus={() => setModal("status")} openIntimacy={() => setModal("intimacy")} goTo={setTab} />}
+        {tab === "home" && <HomeView state={state} intimacy={intimacy} partnerIntimacy={state.partnerIntimacy} viewerName={state.viewerName} partnerName={state.partnerName} openStatus={() => setModal("status")} openIntimacy={() => setModal("intimacy")} goTo={setTab} />}
         {tab === "calendar" && <CalendarView events={state.events} />}
-        {tab === "cycle" && <CycleView cycle={state.cycle} partnerName={production.partnerName} onLog={() => setModal("cycle")} onShare={() => state.cycle && void persist(() => update({ cycle: { ...state.cycle!, sharedWithPartner: !state.cycle!.sharedWithPartner } }), state.cycle.sharedWithPartner ? "چرخه خصوصی شد" : `چرخه با ${production.partnerName} به اشتراک گذاشته شد`, false)} />}
+        {tab === "cycle" && <CycleView cycle={state.cycle} partnerName={state.partnerName} onLog={() => setModal("cycle")} onShare={() => state.cycle && void persist(() => update({ cycle: { ...state.cycle!, sharedWithPartner: !state.cycle!.sharedWithPartner } }), state.cycle.sharedWithPartner ? "چرخه خصوصی شد" : `چرخه با ${state.partnerName} به اشتراک گذاشته شد`, false)} />}
         {tab === "diary" && <DiaryView memories={state.memories} />}
         {tab === "settings" && (
           <SettingsView
-            viewerName={production.viewerName}
-            partnerName={production.partnerName}
+            viewerName={state.viewerName}
+            partnerName={state.partnerName}
+            viewerAvatarUrl={state.viewerAvatarUrl}
             relationshipStartedOn={state.relationshipStartedOn}
             notifications={state.notifications}
             quietHours={state.quietHours}
@@ -167,6 +168,7 @@ export function CouplesApp({ production }: { production: ProductionScope }) {
             }}
             onQuiet={() => void persist(() => update({ quietHours: !state.quietHours }), !state.quietHours ? "ساعت آرامش فعال شد" : "ساعت آرامش خاموش شد", false)}
             onRelationship={() => setModal("relationship")}
+            onProfile={() => setModal("profile")}
             onSpace={() => setModal("invite")}
             onReset={async () => { await createSupabaseBrowserClient()?.auth.signOut(); router.push("/login"); router.refresh(); }}
           />
@@ -185,31 +187,36 @@ export function CouplesApp({ production }: { production: ProductionScope }) {
         <StatusSheet
           currentMood={state.mood}
           currentActivity={state.activity ?? ACTIVITIES[0]}
-          partnerName={production.partnerName}
+          partnerName={state.partnerName}
           onClose={() => setModal(null)}
-          onSave={(mood, activity) => void persist(() => update({ mood, activity }), `مودت برای ${production.partnerName} آپدیت شد 💜`)}
+          onSave={(mood, activity) => void persist(() => update({ mood, activity }), `مودت برای ${state.partnerName} آپدیت شد 💜`)}
         />
       )}
       {modal === "event" && (
         <EventSheet onClose={() => setModal(null)} onSave={(event) => void persist(() => update({ events: [event, ...state.events] }), "قرار جدید به تقویم دونفره اضافه شد")} />
       )}
-      {modal === "cycle" && <CycleSheet cycle={cycleDraft} partnerName={production.partnerName} onClose={() => setModal(null)} onSave={(nextCycle) => void persist(() => update({ cycle: nextCycle }), "وضعیت چرخه ثبت شد")} />}
-      {modal === "intimacy" && <IntimacySheet intimacy={intimacy} partnerName={production.partnerName} onClose={() => setModal(null)} onSave={(nextIntimacy) => void persist(() => update({ intimacy: nextIntimacy }), nextIntimacy.signal ? `سیگنالت رفت برای ${production.partnerName} 😏` : "سیگنال برداشته شد، اوکیه 🤍")} />}
+      {modal === "cycle" && <CycleSheet cycle={cycleDraft} partnerName={state.partnerName} onClose={() => setModal(null)} onSave={(nextCycle) => void persist(() => update({ cycle: nextCycle }), "وضعیت چرخه ثبت شد")} />}
+      {modal === "intimacy" && <IntimacySheet intimacy={intimacy} partnerName={state.partnerName} onClose={() => setModal(null)} onSave={(nextIntimacy) => void persist(() => update({ intimacy: nextIntimacy }), nextIntimacy.signal ? `سیگنالت رفت برای ${state.partnerName} 😏` : "سیگنال برداشته شد، اوکیه 🤍")} />}
       {modal === "memory" && (
-        <MemorySheet viewerId={production.userId} viewerName={production.viewerName} onClose={() => setModal(null)} onSave={(memory) => void persist(() => update({ memories: [memory, ...state.memories] }), "خاطره‌تون ثبت شد 🤍")} />
+        <MemorySheet viewerId={production.userId} viewerName={state.viewerName} onClose={() => setModal(null)} onSave={(memory) => void persist(() => update({ memories: [memory, ...state.memories] }), "خاطره‌تون ثبت شد 🤍")} />
       )}
       {modal === "relationship" && <RelationshipSheet value={state.relationshipStartedOn} onClose={() => setModal(null)} onSave={(relationshipStartedOn) => void persist(() => update({ relationshipStartedOn }), "تاریخ شروع قصه‌تون ذخیره شد")} />}
-      {modal === "invite" && <InviteSheet viewerName={production.viewerName} partnerName={production.partnerName} onClose={() => setModal(null)} />}
+      {modal === "invite" && <InviteSheet viewerName={state.viewerName} partnerName={state.partnerName} onClose={() => setModal(null)} />}
+      {modal === "profile" && <ProfileSheet name={state.viewerName} avatarUrl={state.viewerAvatarUrl} onClose={() => setModal(null)} onSave={(name, avatar) => void persist(() => updateProfile(name, avatar), "پروفایلت آپدیت شد ✨")} />}
     </main>
   );
 }
 
-function Header({ viewerName, partnerName, onInvite }: { viewerName: string; partnerName: string; onInvite: () => void }) {
+function PersonAvatar({ name, url, className = "" }: { name: string; url?: string | null; className?: string }) {
+  return <span className={`avatar ${className}`} style={url ? { backgroundImage: `url(${JSON.stringify(url)})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>{url ? <span className="sr-only">{name}</span> : name.slice(0, 1)}</span>;
+}
+
+function Header({ viewerName, partnerName, viewerAvatarUrl, partnerAvatarUrl, onInvite }: { viewerName: string; partnerName: string; viewerAvatarUrl: string | null; partnerAvatarUrl: string | null; onInvite: () => void }) {
   return (
     <header className="topbar">
       <div className="brand"><span className="brand-mark"><Heart size={21} fill="currentColor" /></span> نامی</div>
       <button className="avatar-pair" aria-label="اطلاعات زوج" onClick={onInvite} style={{ border: 0, background: "transparent", padding: 0 }}>
-        <span className="avatar">{viewerName.slice(0, 1)}</span><span className="avatar partner-avatar">{partnerName.slice(0, 1)}<span className="online-dot" /></span>
+        <PersonAvatar name={viewerName} url={viewerAvatarUrl} /><span className="partner-avatar-wrap"><PersonAvatar name={partnerName} url={partnerAvatarUrl} className="partner-avatar" /><span className="online-dot" /></span>
       </button>
     </header>
   );
@@ -233,12 +240,12 @@ function HomeView({ state, intimacy, partnerIntimacy, viewerName, partnerName, o
     <div className="section-head"><h2>مود دوتامون</h2><button className="text-button" onClick={openStatus}>مودمو عوض کن</button></div>
     <section className="status-grid">
       <div className="card status-card">
-        <div className="status-person"><span className="avatar">{viewerName.slice(0, 1)}</span><div><strong>تو</strong><small>وضعیت خودت</small></div></div>
+        <div className="status-person"><PersonAvatar name={viewerName} url={state.viewerAvatarUrl} /><div><strong>تو</strong><small>وضعیت خودت</small></div></div>
         <div className="mood-bubble"><span className="mood-emoji">{state.mood?.emoji ?? "✨"}</span><strong>{state.mood?.label ?? "هنوز ثبت نشده"}</strong></div>
         <div className="activity"><Clock3 size={13} /> {state.activity ?? "مودت رو برای اولین بار ثبت کن"}</div>
       </div>
       <div className="card status-card">
-        <div className="status-person"><span className="avatar" style={{ background: "var(--rose)" }}>{partnerName.slice(0, 1)}</span><div><strong>{partnerName}</strong><small>آخرین وضعیت</small></div></div>
+        <div className="status-person"><PersonAvatar name={partnerName} url={state.partnerAvatarUrl} className="rose-avatar" /><div><strong>{partnerName}</strong><small>آخرین وضعیت</small></div></div>
         <div className="mood-bubble" style={{ background: "var(--rose-soft)" }}><span className="mood-emoji">{state.partnerMood?.emoji ?? "🤍"}</span><strong>{state.partnerMood?.label ?? "هنوز ثبت نشده"}</strong></div>
         <div className="activity"><Clock3 size={13} /> {state.partnerActivity ?? `منتظر اولین آپدیت ${partnerName}`}</div>
       </div>
@@ -344,11 +351,11 @@ function DiaryView({ memories }: { memories: MemoryItem[] }) {
   </>;
 }
 
-function SettingsView({ viewerName, partnerName, relationshipStartedOn, notifications, quietHours, onNotifications, onQuiet, onRelationship, onSpace, onReset }: { viewerName: string; partnerName: string; relationshipStartedOn: string; notifications: boolean; quietHours: boolean; onNotifications: () => void; onQuiet: () => void; onRelationship: () => void; onSpace: () => void; onReset: () => void }) {
+function SettingsView({ viewerName, partnerName, viewerAvatarUrl, relationshipStartedOn, notifications, quietHours, onNotifications, onQuiet, onRelationship, onProfile, onSpace, onReset }: { viewerName: string; partnerName: string; viewerAvatarUrl: string | null; relationshipStartedOn: string; notifications: boolean; quietHours: boolean; onNotifications: () => void; onQuiet: () => void; onRelationship: () => void; onProfile: () => void; onSpace: () => void; onReset: () => void }) {
   const relationshipDate = new Intl.DateTimeFormat("fa-IR-u-ca-persian", { dateStyle: "long", timeZone: TEHRAN_TIME_ZONE }).format(new Date(`${relationshipStartedOn}T12:00:00${TEHRAN_OFFSET}`));
   return <>
     <p className="eyebrow">همه‌چی همون‌جوری که تو می‌خوای</p><h1>تنظیماتِ خودمونی</h1>
-    <section className="card" style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 22 }}><span className="avatar" style={{ width: 58, height: 58, border: 0, fontSize: 20 }}>{viewerName.slice(0, 1)}</span><div><h2 style={{ margin: 0 }}>{viewerName}</h2><span className="muted">همراه {partnerName} از {relationshipDate}</span></div></section>
+    <button className="card profile-summary" onClick={onProfile}><PersonAvatar name={viewerName} url={viewerAvatarUrl} className="profile-summary-avatar" /><div><h2>{viewerName}</h2><span className="muted">همراه {partnerName} از {relationshipDate}</span><small>برای تغییر اسم یا عکس بزن اینجا</small></div><ChevronLeft size={20} /></button>
     <div className="settings-list">
       <Setting icon={BellRing} title="اعلان‌های نامی" subtitle="اعلان‌های مرورگر هنگام باز بودن نامی" action={<Switch checked={notifications} onChange={onNotifications} slotProps={{ input: { "aria-label": "تغییر اعلان‌ها" } }} />} />
       <Setting icon={Moon} title="ساعت آرامش" subtitle="از ۲۳ شب تا ۸ صبح" action={<Switch checked={quietHours} onChange={onQuiet} slotProps={{ input: { "aria-label": "تغییر ساعت آرامش" } }} />} />
@@ -395,7 +402,7 @@ function EventSheet({ onClose, onSave }: { onClose: () => void; onSave: (e: Even
       startsAt: tehranIsoDateTime(eventDate, eventTime),
     });
   };
-  return <Sheet onClose={onClose}><p className="eyebrow">یه تایم خوب برای دوتاتون</p><h2>پلن تازه ✨</h2><form onSubmit={submit}><div className="field"><label>اسم پلن</label><input className="input" name="title" required placeholder="مثلاً شام دونفره" /></div><div className="field"><label>تاریخ شمسی</label><DatePicker value={jalaliPickerValue(eventDate)} onChange={(value) => { if (value instanceof DateObject) setEventDate(value.convert(gregorian).format("YYYY-MM-DD")); }} calendar={persian} locale={persianFa} format="YYYY/MM/DD" calendarPosition="bottom-right" inputClass="input jalali-input" containerClassName="datepicker-container" /></div><div className="field"><label>ساعت <span className="timezone-label">به وقت تهران (+۰۳:۳۰)</span></label><input className="input time-input" value={eventTime} onChange={(event) => setEventTime(event.target.value)} type="time" /></div><div className="field"><label>کی یادت بندازم؟</label><select className="input" name="reminder"><option>یک روز قبل</option><option>یک هفته قبل</option><option>یک ماه قبل</option><option>همان موقع</option></select></div><div className="timezone-note"><Clock3 size={15} /> همه‌ی ساعت‌ها با منطقه‌ی زمانی تهران ذخیره می‌شن.</div><button className="primary-button" type="submit">بذار توی تقویممون</button></form></Sheet>;
+  return <Sheet onClose={onClose}><p className="eyebrow">یه تایم خوب برای دوتاتون</p><h2>پلن تازه ✨</h2><form onSubmit={submit}><div className="field"><label>اسم پلن</label><input className="input" name="title" required placeholder="مثلاً شام دونفره" /></div><div className="field"><label>تاریخ شمسی</label><DatePicker value={jalaliPickerValue(eventDate)} onChange={(value) => { if (value instanceof DateObject) setEventDate(value.convert(gregorian).format("YYYY-MM-DD")); }} calendar={persian} locale={persianFa} format="YYYY/MM/DD" calendarPosition="bottom-right" inputClass="input jalali-input" containerClassName="datepicker-container" portal zIndex={1600} editable={false} /></div><div className="field"><label>ساعت <span className="timezone-label">به وقت تهران (+۰۳:۳۰)</span></label><input className="input time-input" value={eventTime} onChange={(event) => setEventTime(event.target.value)} type="time" /></div><div className="field"><label>کی یادت بندازم؟</label><select className="input" name="reminder"><option>یک روز قبل</option><option>یک هفته قبل</option><option>یک ماه قبل</option><option>همان موقع</option></select></div><div className="timezone-note"><Clock3 size={15} /> همه‌ی ساعت‌ها با منطقه‌ی زمانی تهران ذخیره می‌شن.</div><button className="primary-button" type="submit">بذار توی تقویممون</button></form></Sheet>;
 }
 
 function CycleSheet({ cycle, partnerName, onClose, onSave }: { cycle: CycleState; partnerName: string; onClose: () => void; onSave: (cycle: CycleState) => void }) {
@@ -416,7 +423,7 @@ function CycleSheet({ cycle, partnerName, onClose, onSave }: { cycle: CycleState
     });
   };
   return <Sheet onClose={onClose}><p className="eyebrow">بدن من، انتخاب من</p><h2>ثبت وضعیت چرخه</h2><form onSubmit={submit}>
-    <div className="field"><label>شروع آخرین پریود <span className="timezone-label">تقویم شمسی</span></label><DatePicker value={jalaliPickerValue(periodStart)} onChange={(value) => { if (value instanceof DateObject) setPeriodStart(value.convert(gregorian).format("YYYY-MM-DD")); }} maxDate={tehranToday()} calendar={persian} locale={persianFa} format="YYYY/MM/DD" calendarPosition="bottom-right" inputClass="input jalali-input" containerClassName="datepicker-container" /></div>
+    <div className="field"><label>شروع آخرین پریود <span className="timezone-label">تقویم شمسی</span></label><DatePicker value={jalaliPickerValue(periodStart)} onChange={(value) => { if (value instanceof DateObject) setPeriodStart(value.convert(gregorian).format("YYYY-MM-DD")); }} maxDate={tehranToday()} calendar={persian} locale={persianFa} format="YYYY/MM/DD" calendarPosition="bottom-right" inputClass="input jalali-input" containerClassName="datepicker-container" portal zIndex={1600} editable={false} /></div>
     <div className="form-columns"><div className="field"><label>طول چرخه</label><div className="number-field"><input className="input" type="number" name="cycleLength" defaultValue={cycle.cycleLength} min="20" max="45" required /><span>روز</span></div></div><div className="field"><label>طول پریود</label><div className="number-field"><input className="input" type="number" name="periodLength" defaultValue={cycle.periodLength} min="2" max="10" required /><span>روز</span></div></div></div>
     <div className="field"><label>امروز چه حسی داری؟</label><div className="symptom-picker">{symptoms.map((symptom) => <button type="button" key={symptom} className={selectedSymptoms.includes(symptom) ? "selected" : ""} onClick={() => toggleSymptom(symptom)}>{symptom}</button>)}</div></div>
     <div className="field"><label>یادداشت اختیاری</label><textarea className="input compact-textarea" name="note" defaultValue={cycle.note} placeholder="مثلاً امروز کمی استراحت بیشتر لازم داشتم..." /></div>
@@ -464,9 +471,32 @@ function MemorySheet({ viewerId, viewerName, onClose, onSave }: { viewerId: stri
   return <Sheet onClose={onClose}><p className="eyebrow">یک لحظه برای همیشه</p><h2>خاطره‌ی تازه</h2><form onSubmit={submit}><div className="field"><label>حال‌وهوای خاطره</label><div className="choice-grid">{["🤍","☕","🌿","🌊"].map((item) => <button type="button" key={item} className={`choice ${emoji === item ? "selected" : ""}`} onClick={() => setEmoji(item)}><span>{item}</span></button>)}</div></div><div className="field"><label>عنوان</label><input className="input" name="title" required maxLength={120} placeholder="اسم این خاطره..." /></div><div className="field"><label>چی شد؟</label><textarea className="input" name="body" required maxLength={5000} placeholder="هر چیزی که دوست داری یادتون بمونه..." /></div><button className="primary-button" type="submit">ثبت در دفتر ما</button></form></Sheet>;
 }
 
+function ProfileSheet({ name, avatarUrl, onClose, onSave }: { name: string; avatarUrl: string | null; onClose: () => void; onSave: (name: string, avatar: File | null) => void }) {
+  const [displayName, setDisplayName] = useState(name);
+  const [avatar, setAvatar] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(avatarUrl);
+
+  useEffect(() => () => {
+    if (previewUrl?.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
+
+  const selectAvatar = (file?: File) => {
+    if (!file) return;
+    setAvatar(file);
+    setPreviewUrl(URL.createObjectURL(file));
+  };
+
+  return <Sheet onClose={onClose}>
+    <p className="eyebrow">همون خودِ قشنگت</p><h2>پروفایلت رو بچین ✨</h2>
+    <div className="profile-editor-avatar"><PersonAvatar name={displayName || name} url={previewUrl} /><label className="avatar-picker"><Camera size={17} /> انتخاب عکس<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => selectAvatar(event.target.files?.[0])} /></label><small>JPG، PNG یا WebP تا ۵ مگابایت</small></div>
+    <div className="field"><label htmlFor="profile-name">اسمی که پارتنرت می‌بینه</label><input id="profile-name" className="input" value={displayName} onChange={(event) => setDisplayName(event.target.value)} minLength={1} maxLength={60} required autoComplete="name" /></div>
+    <button className="primary-button" disabled={!displayName.trim()} onClick={() => onSave(displayName, avatar)}>ذخیره تغییرات</button>
+  </Sheet>;
+}
+
 function RelationshipSheet({ value, onClose, onSave }: { value: string; onClose: () => void; onSave: (date: string) => void }) {
   const [date, setDate] = useState(value);
-  return <Sheet onClose={onClose}><p className="eyebrow">شروع قصه‌ی شما</p><h2>از کی «ما» شدین؟</h2><div className="field"><label>تاریخ شروع <span className="timezone-label">تقویم شمسی</span></label><DatePicker value={jalaliPickerValue(date)} onChange={(next) => { if (next instanceof DateObject) setDate(next.convert(gregorian).format("YYYY-MM-DD")); }} maxDate={tehranToday()} calendar={persian} locale={persianFa} format="YYYY/MM/DD" calendarPosition="bottom-right" inputClass="input jalali-input" containerClassName="datepicker-container" /></div><button className="primary-button" onClick={() => onSave(date)}>ذخیره تاریخ</button></Sheet>;
+  return <Sheet onClose={onClose}><p className="eyebrow">شروع قصه‌ی شما</p><h2>از کی «ما» شدین؟</h2><div className="field"><label>تاریخ شروع <span className="timezone-label">تقویم شمسی</span></label><DatePicker value={jalaliPickerValue(date)} onChange={(next) => { if (next instanceof DateObject) setDate(next.convert(gregorian).format("YYYY-MM-DD")); }} maxDate={tehranToday()} calendar={persian} locale={persianFa} format="YYYY/MM/DD" calendarPosition="bottom-right" inputClass="input jalali-input" containerClassName="datepicker-container" portal zIndex={1600} editable={false} /></div><button className="primary-button" onClick={() => onSave(date)}>ذخیره تاریخ</button></Sheet>;
 }
 
 function InviteSheet({ viewerName, partnerName, onClose }: { viewerName: string; partnerName: string; onClose: () => void }) {

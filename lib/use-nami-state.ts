@@ -6,6 +6,7 @@ import { createSupabaseBrowserClient } from "./supabase/client";
 
 export type ProductionScope = {
   userId: string;
+  partnerId: string;
   coupleId: string;
   viewerName: string;
   partnerName: string;
@@ -26,6 +27,12 @@ export type NamiState = {
   intimacy: IntimacyState;
   partnerIntimacy: IntimacyState | null;
   relationshipStartedOn: string;
+  viewerName: string;
+  partnerName: string;
+  viewerAvatarPath: string | null;
+  partnerAvatarPath: string | null;
+  viewerAvatarUrl: string | null;
+  partnerAvatarUrl: string | null;
 };
 
 type SupabaseError = { message: string; code?: string; hint?: string | null; details?: string | null };
@@ -60,7 +67,20 @@ function initialState(scope: ProductionScope): NamiState {
     intimacy: createDefaultIntimacy(),
     partnerIntimacy: null,
     relationshipStartedOn: scope.relationshipStartedOn,
+    viewerName: scope.viewerName,
+    partnerName: scope.partnerName,
+    viewerAvatarPath: null,
+    partnerAvatarPath: null,
+    viewerAvatarUrl: null,
+    partnerAvatarUrl: null,
   };
+}
+
+async function signedAvatarUrl(client: NonNullable<ReturnType<typeof createSupabaseBrowserClient>>, path: string | null | undefined) {
+  if (!path) return null;
+  const { data, error } = await client.storage.from("profile-avatars").createSignedUrl(path, 3600);
+  if (error) { console.error("[Nami] avatar URL", error); return null; }
+  return data.signedUrl;
 }
 
 const reminderLabels = new Map<number, string>([[0, "همان موقع"], [1440, "یک روز قبل"], [10080, "یک هفته قبل"], [43200, "یک ماه قبل"]]);
@@ -98,7 +118,7 @@ export function useNamiState(scope: ProductionScope) {
     const client = createSupabaseBrowserClient();
     if (!client) { setError("اتصال امن نامی به سرور تنظیم نشده."); setReady(true); return; }
     try {
-      const [statuses, events, entries, settings, log, prefs, signals, profile] = await Promise.all([
+      const [statuses, events, entries, settings, log, prefs, signals, profiles, couple] = await Promise.all([
         client.from("statuses").select("*").eq("couple_id", scope.coupleId),
         client.from("events").select("*").eq("couple_id", scope.coupleId).gte("starts_at", new Date().toISOString()).order("starts_at"),
         client.from("diary_entries").select("*, diary_replies(body, author_id, created_at)").eq("couple_id", scope.coupleId).order("happened_on", { ascending: false }).order("created_at", { ascending: false }),
@@ -106,16 +126,25 @@ export function useNamiState(scope: ProductionScope) {
         client.from("cycle_logs").select("*").eq("user_id", scope.userId).order("logged_on", { ascending: false }).limit(1).maybeSingle(),
         client.from("notification_preferences").select("*").eq("user_id", scope.userId).maybeSingle(),
         client.from("intimacy_signals").select("*").eq("couple_id", scope.coupleId).is("withdrawn_at", null).gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }),
-        client.from("profiles").select("adult_confirmed_at").eq("id", scope.userId).maybeSingle(),
+        client.from("profiles").select("id, display_name, avatar_path, adult_confirmed_at").in("id", [scope.userId, scope.partnerId]),
+        client.from("couples").select("relationship_started_on, created_at").eq("id", scope.coupleId).single(),
       ]);
-      const failed = [statuses, events, entries, settings, log, prefs, signals, profile].find((result) => result.error);
+      const failed = [statuses, events, entries, settings, log, prefs, signals, profiles, couple].find((result) => result.error);
       throwIfError(failed?.error as SupabaseError | null, "اطلاعات");
       const own = statuses.data?.find((item) => item.user_id === scope.userId);
       const partner = statuses.data?.find((item) => item.user_id !== scope.userId);
       const cycle = settings.data;
       const daily = log.data;
       const pref = prefs.data;
-      const adultConfirmed = Boolean(profile.data?.adult_confirmed_at);
+      const viewerProfile = profiles.data?.find((item) => item.id === scope.userId);
+      const partnerProfile = profiles.data?.find((item) => item.id === scope.partnerId);
+      const viewerName = viewerProfile?.display_name || scope.viewerName;
+      const partnerName = partnerProfile?.display_name || scope.partnerName;
+      const [viewerAvatarUrl, partnerAvatarUrl] = await Promise.all([
+        signedAvatarUrl(client, viewerProfile?.avatar_path),
+        signedAvatarUrl(client, partnerProfile?.avatar_path),
+      ]);
+      const adultConfirmed = Boolean(viewerProfile?.adult_confirmed_at);
       const ownSignal = signals.data?.find((item) => item.sender_id === scope.userId);
       const partnerSignal = signals.data?.find((item) => item.sender_id !== scope.userId);
       setState((current) => ({
@@ -130,13 +159,20 @@ export function useNamiState(scope: ProductionScope) {
           const reply = replies[0];
           const authorId = String(row.author_id);
           const replyAuthorId = reply ? String(reply.author_id) : "";
-          return { id: String(row.id), title: String(row.title), body: String(row.body), date: new Intl.DateTimeFormat("fa-IR-u-ca-persian", { dateStyle: "long", timeZone: "Asia/Tehran" }).format(new Date(`${row.happened_on}T12:00:00+03:30`)), emoji: String(row.emoji ?? "🤍"), authorId, authorName: authorId === scope.userId ? scope.viewerName : scope.partnerName, reply: reply?.body ? String(reply.body) : undefined, replyAuthorName: replyAuthorId === scope.userId ? scope.viewerName : scope.partnerName };
+          return { id: String(row.id), title: String(row.title), body: String(row.body), date: new Intl.DateTimeFormat("fa-IR-u-ca-persian", { dateStyle: "long", timeZone: "Asia/Tehran" }).format(new Date(`${row.happened_on}T12:00:00+03:30`)), emoji: String(row.emoji ?? "🤍"), authorId, authorName: authorId === scope.userId ? viewerName : partnerName, reply: reply?.body ? String(reply.body) : undefined, replyAuthorName: replyAuthorId === scope.userId ? viewerName : partnerName };
         }) ?? [],
         cycle: cycle ? { lastPeriodStart: cycle.last_period_start, cycleLength: cycle.cycle_length, periodLength: cycle.period_length, sharedWithPartner: cycle.shared_with_partner, symptoms: daily?.symptoms ?? [], note: daily?.note ?? "" } : null,
         notifications: pref?.status_updates ?? false,
         quietHours: Boolean(pref?.quiet_start),
         intimacy: ownSignal ? signalFromRow(ownSignal as Record<string, unknown>, adultConfirmed) : createDefaultIntimacy(adultConfirmed),
         partnerIntimacy: partnerSignal ? signalFromRow(partnerSignal as Record<string, unknown>, adultConfirmed) : null,
+        viewerName,
+        partnerName,
+        viewerAvatarPath: viewerProfile?.avatar_path ?? null,
+        partnerAvatarPath: partnerProfile?.avatar_path ?? null,
+        viewerAvatarUrl,
+        partnerAvatarUrl,
+        relationshipStartedOn: couple.data?.relationship_started_on ?? String(couple.data?.created_at ?? scope.relationshipStartedOn).slice(0, 10),
       }));
       setError(null);
     } catch (loadError) {
@@ -158,10 +194,12 @@ export function useNamiState(scope: ProductionScope) {
       if ("serviceWorker" in navigator) void navigator.serviceWorker.ready.then((registration) => registration.showNotification(title, { body, icon: "/icon.svg", badge: "/icon.svg", data: { url: "/" } }));
     };
     const coupleChannel = client.channel(`couple-${scope.coupleId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "statuses", filter: `couple_id=eq.${scope.coupleId}` }, (payload) => { const row = payload.new as Record<string, unknown>; if (row.user_id && row.user_id !== scope.userId) notifyPartnerUpdate("یه آپدیت تازه توی نامی 💜", `${scope.partnerName} حال‌وهوایش را به‌روز کرد.`); reload(); })
-      .on("postgres_changes", { event: "*", schema: "public", table: "events", filter: `couple_id=eq.${scope.coupleId}` }, (payload) => { const row = payload.new as Record<string, unknown>; if (row.created_by && row.created_by !== scope.userId) notifyPartnerUpdate("یه پلن تازه دارین 📅", `${scope.partnerName} تقویم دوتایی‌تون را به‌روز کرد.`); reload(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "statuses", filter: `couple_id=eq.${scope.coupleId}` }, (payload) => { const row = payload.new as Record<string, unknown>; if (row.user_id && row.user_id !== scope.userId) notifyPartnerUpdate("یه آپدیت تازه توی نامی 💜", `${stateRef.current.partnerName} حال‌وهوایش را به‌روز کرد.`); reload(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "events", filter: `couple_id=eq.${scope.coupleId}` }, (payload) => { const row = payload.new as Record<string, unknown>; if (row.created_by && row.created_by !== scope.userId) notifyPartnerUpdate("یه پلن تازه دارین 📅", `${stateRef.current.partnerName} تقویم دوتایی‌تون را به‌روز کرد.`); reload(); })
       .on("postgres_changes", { event: "*", schema: "public", table: "diary_entries", filter: `couple_id=eq.${scope.coupleId}` }, reload)
-      .on("postgres_changes", { event: "*", schema: "public", table: "intimacy_signals", filter: `couple_id=eq.${scope.coupleId}` }, (payload) => { const row = payload.new as Record<string, unknown>; if (row.sender_id && row.sender_id !== scope.userId) notifyPartnerUpdate("یه پیام خصوصی توی نامی داری 🔒", `${scope.partnerName} یه سیگنال دوتایی فرستاده.`); reload(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "intimacy_signals", filter: `couple_id=eq.${scope.coupleId}` }, (payload) => { const row = payload.new as Record<string, unknown>; if (row.sender_id && row.sender_id !== scope.userId) notifyPartnerUpdate("یه پیام خصوصی توی نامی داری 🔒", `${stateRef.current.partnerName} یه سیگنال دوتایی فرستاده.`); reload(); })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${scope.userId}` }, reload)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${scope.partnerId}` }, reload)
       .subscribe((status, channelError) => { if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.error("[Nami] realtime", status, channelError); });
     const privateChannel = client.channel(`user-${scope.userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "cycle_settings", filter: `user_id=eq.${scope.userId}` }, reload)
@@ -212,5 +250,34 @@ export function useNamiState(scope: ProductionScope) {
     }
   }, [scope, load]);
 
-  return { state, update, ready, error, reload: load };
+  const updateProfile = useCallback(async (displayName: string, avatarFile?: File | null) => {
+    const client = createSupabaseBrowserClient();
+    if (!client) throw new Error("اتصال امن نامی به سرور تنظیم نشده.");
+    const cleanName = displayName.trim();
+    if (!cleanName || cleanName.length > 60) throw new Error("اسم باید بین ۱ تا ۶۰ کاراکتر باشه.");
+    let uploadedPath: string | null = null;
+    try {
+      if (avatarFile) {
+        const allowedTypes = new Map([["image/jpeg", "jpg"], ["image/png", "png"], ["image/webp", "webp"]]);
+        const extension = allowedTypes.get(avatarFile.type);
+        if (!extension) throw new Error("عکس باید JPG، PNG یا WebP باشه.");
+        if (avatarFile.size > 5 * 1024 * 1024) throw new Error("حجم عکس باید کمتر از ۵ مگابایت باشه.");
+        uploadedPath = `${scope.userId}/${crypto.randomUUID()}.${extension}`;
+        const uploadResult = await client.storage.from("profile-avatars").upload(uploadedPath, avatarFile, { contentType: avatarFile.type, cacheControl: "3600", upsert: false });
+        if (uploadResult.error) { console.error("[Nami] avatar upload", uploadResult.error); throw new Error("آپلود عکس انجام نشد؛ دوباره امتحان کن."); }
+      }
+      const profileResult = await client.from("profiles").update({ display_name: cleanName, ...(uploadedPath ? { avatar_path: uploadedPath } : {}) }).eq("id", scope.userId);
+      throwIfError(profileResult.error, "پروفایل");
+      if (uploadedPath && stateRef.current.viewerAvatarPath && stateRef.current.viewerAvatarPath !== uploadedPath) {
+        const removal = await client.storage.from("profile-avatars").remove([stateRef.current.viewerAvatarPath]);
+        if (removal.error) console.error("[Nami] old avatar cleanup", removal.error);
+      }
+      await load();
+    } catch (profileError) {
+      if (uploadedPath) await client.storage.from("profile-avatars").remove([uploadedPath]);
+      throw profileError instanceof Error ? profileError : new Error("پروفایل ذخیره نشد؛ دوباره امتحان کن.");
+    }
+  }, [scope, load]);
+
+  return { state, update, updateProfile, ready, error, reload: load };
 }

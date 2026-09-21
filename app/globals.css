@@ -58,7 +58,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .avatar { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; color: white; font-weight: 800; border: 3px solid var(--bg); background: var(--primary); }
 .avatar + .avatar { margin-left: -10px; background: var(--rose); }
 .partner-avatar { position: relative; }
+.partner-avatar-wrap { position: relative; margin-left: -10px; }
+.partner-avatar-wrap .partner-avatar, .rose-avatar { background-color: var(--rose); }
 .online-dot { position: absolute; width: 10px; height: 10px; left: -1px; bottom: 0; border: 2px solid var(--bg); border-radius: 50%; background: #44b98c; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 .eyebrow { color: var(--primary); font-size: 12px; font-weight: 750; margin: 0 0 5px; letter-spacing: -.1px; }
 h1, h2, h3, p { margin-top: 0; }
@@ -248,6 +251,11 @@ h3 { font-size: 16px; margin-bottom: 6px; }
 .reply .avatar { width: 28px; height: 28px; border: 0; font-size: 10px; flex: none; }
 
 .settings-list { display: grid; gap: 10px; }
+.profile-summary { width: 100%; display: flex; align-items: center; gap: 14px; margin-bottom: 22px; color: var(--text); text-align: right; }
+.profile-summary > div { min-width: 0; flex: 1; }
+.profile-summary h2 { margin: 0; }
+.profile-summary small { display: block; margin-top: 4px; color: var(--primary); font-size: 10px; }
+.profile-summary-avatar { width: 58px; height: 58px; flex: none; border: 0; font-size: 20px; }
 .setting-row { width: 100%; min-height: 72px; display: flex; align-items: center; gap: 12px; border: 1px solid var(--border); background: rgba(255,255,255,.92); border-radius: 19px; padding: 14px 15px; text-align: right; color: var(--text); }
 .setting-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 14px; background: var(--primary-soft); color: var(--primary); }
 .setting-row > div:nth-child(2) { flex: 1; }
@@ -273,6 +281,11 @@ h3 { font-size: 16px; margin-bottom: 6px; }
 .field label { font-size: 13px; font-weight: 800; }
 .input { width: 100%; min-height: 49px; border: 1px solid var(--border); border-radius: 15px; background: #fbfafc; color: var(--text); padding: 13px 14px; transition: border-color .2s ease, box-shadow .2s ease; }
 .input:focus { border-color: #a999e4; box-shadow: 0 0 0 4px rgba(111,91,211,.09); outline: 0; }
+.profile-editor-avatar { display: grid; place-items: center; gap: 9px; margin: 18px 0 22px; }
+.profile-editor-avatar > .avatar { width: 92px; height: 92px; border: 4px solid white; font-size: 30px; box-shadow: 0 10px 28px rgba(70,53,112,.18); }
+.profile-editor-avatar small { color: var(--muted); font-size: 9px; }
+.avatar-picker { display: flex; align-items: center; gap: 7px; padding: 9px 14px; border: 1px solid var(--border); border-radius: 13px; color: var(--primary-dark); background: var(--primary-soft); font-size: 11px; font-weight: 750; cursor: pointer; }
+.avatar-picker input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .datepicker-container { width: 100%; }
 .datepicker-container > div { width: 100%; }
 .jalali-input { width: 100% !important; text-align: right; direction: rtl; cursor: pointer; }
