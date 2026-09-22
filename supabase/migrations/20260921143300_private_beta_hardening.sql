@@ -19,12 +19,14 @@ set search_path = ''
 as $$
 declare
   alphabet constant text := '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
-  random_bytes bytea := extensions.gen_random_bytes(12);
   result text := '';
-  index integer;
+  random_byte integer;
 begin
-  for index in 0..11 loop
-    result := result || substr(alphabet, (get_byte(random_bytes, index) % 32) + 1, 1);
+  while char_length(result) < 12 loop
+    random_byte := get_byte(extensions.gen_random_bytes(1), 0);
+    if random_byte < 248 then
+      result := result || substr(alphabet, (random_byte % char_length(alphabet)) + 1, 1);
+    end if;
   end loop;
   return result;
 end;
@@ -330,7 +332,7 @@ begin
 
   insert into public.cycle_logs (user_id, logged_on, symptoms, note, updated_at)
   values (caller_id, logged_on, symptoms, coalesce(note, ''), now())
-  on conflict (user_id, logged_on) do update set
+  on conflict on constraint cycle_logs_user_id_logged_on_key do update set
     symptoms = excluded.symptoms,
     note = excluded.note,
     updated_at = now();
