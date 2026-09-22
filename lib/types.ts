@@ -58,6 +58,7 @@ export type EventItem = {
   daysLeft: number;
   reminder: string;
   startsAt?: string;
+  isPast?: boolean;
 };
 
 export type MemoryItem = {

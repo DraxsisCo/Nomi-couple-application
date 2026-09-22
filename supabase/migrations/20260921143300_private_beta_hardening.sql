@@ -60,7 +60,7 @@ begin
     values (target_couple, (select auth.uid()), 'creator');
   end if;
 
-  if (select count(*) from public.couple_members where couple_id = target_couple) >= 2 then
+  if (select count(*) from public.couple_members cm where cm.couple_id = target_couple) >= 2 then
     raise exception 'couple_full';
   end if;
 

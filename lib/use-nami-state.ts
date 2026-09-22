@@ -106,7 +106,8 @@ function eventFromRow(row: Record<string, unknown>): EventItem {
   const day = Number(rawDay.replace(/[۰-۹]/g, (digit) => String(faDigits.indexOf(digit))));
   const time = new Intl.DateTimeFormat("fa-IR", { timeZone: "Asia/Tehran", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
   const offsets = Array.isArray(row.reminder_offsets) ? row.reminder_offsets as number[] : [];
-  return { id: String(row.id), createdBy: row.created_by ? String(row.created_by) : undefined, title: String(row.title), day, month: parts.find((part) => part.type === "month")?.value || "", time: row.all_day ? "تمام روز" : time, daysLeft: Math.max(0, Math.ceil((date.getTime() - Date.now()) / 86400000)), reminder: reminderLabels.get(offsets[0] ?? 1440) ?? "یک روز قبل", startsAt: date.toISOString() };
+  const millisecondsUntilStart = date.getTime() - Date.now();
+  return { id: String(row.id), createdBy: row.created_by ? String(row.created_by) : undefined, title: String(row.title), day, month: parts.find((part) => part.type === "month")?.value || "", time: row.all_day ? "تمام روز" : time, daysLeft: Math.max(0, Math.ceil(millisecondsUntilStart / 86400000)), reminder: reminderLabels.get(offsets[0] ?? 1440) ?? "یک روز قبل", startsAt: date.toISOString(), isPast: millisecondsUntilStart < 0 };
 }
 
 function signalFromRow(row: Record<string, unknown>, adultConfirmed: boolean): IntimacyState {
@@ -228,7 +229,7 @@ export function useNamiState(scope: ProductionScope) {
       console.error("[Nami] load", loadError);
       const snapshot = await readSafeSnapshot(scope.coupleId).catch(() => null);
       if (snapshot) {
-        setState((current) => ({ ...current, partnerName: snapshot.partnerName, partnerMood: snapshot.partnerMood, partnerActivity: snapshot.partnerActivity, relationshipStartedOn: snapshot.relationshipStartedOn, events: snapshot.events, activities: snapshot.activities ?? [] }));
+        setState((current) => ({ ...current, partnerName: snapshot.partnerName, partnerMood: snapshot.partnerMood, partnerActivity: snapshot.partnerActivity, relationshipStartedOn: snapshot.relationshipStartedOn, events: snapshot.events.map((event) => ({ ...event, isPast: event.startsAt ? new Date(event.startsAt).getTime() < Date.now() : false })), activities: snapshot.activities ?? [] }));
         setLastSyncedAt(snapshot.savedAt);
         setConnection("stale");
         setError(null);

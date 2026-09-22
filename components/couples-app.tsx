@@ -318,7 +318,7 @@ function relationshipDays(startedOn: string) {
 }
 
 function HomeView({ state, userId, coupleId, intimacy, partnerIntimacy, viewerName, partnerName, openStatus, openIntimacy, openDaily, openPoke, openChallenge, goTo }: { state: ReturnType<typeof useNamiState>["state"]; userId: string; coupleId: string; intimacy: IntimacyState; partnerIntimacy: IntimacyState | null; viewerName: string; partnerName: string; openStatus: () => void; openIntimacy: () => void; openDaily: () => void; openPoke: () => void; openChallenge: () => void; goTo: (tab: Tab) => void }) {
-  const next = state.events.find((event) => !event.startsAt || new Date(event.startsAt).getTime() >= Date.now());
+  const next = state.events.find((event) => !event.isPast);
   const visibleIntimacy = partnerIntimacy ?? intimacy;
   const intimacyOwner = partnerIntimacy ? partnerName : viewerName;
   return <>
@@ -518,6 +518,7 @@ function EventSheet({ event, onClose, onSave }: { event: EventItem | null; onClo
       daysLeft,
       reminder: String(data.get("reminder")),
       startsAt: tehranIsoDateTime(eventDate, eventTime),
+      isPast: targetDate.getTime() < tehranToday().getTime(),
     });
   };
   return <Sheet onClose={onClose}><p className="eyebrow">یه تایم خوب برای دوتاتون</p><h2>{event ? "ویرایش برنامه" : "پلن تازه ✨"}</h2><form onSubmit={submit}><div className="field"><label>اسم پلن</label><input className="input" name="title" required defaultValue={event?.title} placeholder="مثلاً شام دونفره" /></div><div className="field"><label>تاریخ شمسی</label><DatePicker value={jalaliPickerValue(eventDate)} onChange={(value) => { const nextDate = selectedIsoDate(value); if (nextDate) setEventDate(nextDate); }} calendar={persian} locale={persianFa} format="YYYY/MM/DD" calendarPosition="bottom-right" inputClass="input jalali-input" containerClassName="datepicker-container" portal zIndex={1600} editable={false} /></div><div className="field"><label>ساعت <span className="timezone-label">به وقت تهران (+۰۳:۳۰)</span></label><input className="input time-input" value={eventTime} onChange={(changeEvent) => setEventTime(changeEvent.target.value)} type="time" /></div><div className="field"><label>کی یادت بندازم؟</label><select className="input" name="reminder" defaultValue={event?.reminder ?? "یک روز قبل"}><option>یک روز قبل</option><option>یک هفته قبل</option><option>یک ماه قبل</option><option>همان موقع</option></select></div><div className="timezone-note"><Clock3 size={15} /> همه‌ی ساعت‌ها با منطقه‌ی زمانی تهران ذخیره می‌شن.</div><button className="primary-button" type="submit">{event ? "ذخیره تغییرات" : "بذار توی تقویممون"}</button></form></Sheet>;
